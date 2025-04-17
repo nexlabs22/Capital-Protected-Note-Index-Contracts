@@ -10,15 +10,20 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
+import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
+import {IndexToken} from "../token/IndexToken.sol";
 
 contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
-    IERC20 usdc;
+    IndexToken indexToken;
     StagingCustodyAccount stagingCustodyAccount;
     IndexFactoryStorage indexFactoryStorage;
+    FunctionsOracle public functionsOracle;
+    IERC20 usdc;
 
     uint256 public issuanceNonce;
+    uint256 public redemptionNonce;
 
     event RequestIssuance(
         uint256 indexed nonce,
@@ -38,7 +43,21 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
-    function initialize(address _stagingCustodyAccount, address _usdc) external initializer {
+    event RequestRedemption(
+        uint256 indexed nonce,
+        address indexed user,
+        address outputToken,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 time
+    );
+
+    function initialize(address _indexToken, address _stagingCustodyAccount, address _functionsOracle, address _usdc)
+        external
+        initializer
+    {
+        indexToken = IndexToken(_indexToken);
+        functionsOracle = FunctionsOracle(_functionsOracle);
         stagingCustodyAccount = StagingCustodyAccount(_stagingCustodyAccount);
         usdc = IERC20(_usdc);
 
@@ -79,5 +98,17 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
             0,
             block.timestamp
         );
+    }
+
+    function redemption(uint256 _inputAmount) public nonReentrant whenNotPaused returns (uint256) {
+        require(_inputAmount > 0, "Invalid input amount");
+        redemptionNonce++;
+        indexFactoryStorage.setRedemptionInputAmount(redemptionNonce, _inputAmount);
+        // uint256 tokenBurnPercent = _inputAmount * 1e18 / indexToken.totalSupply();
+        indexToken.burn(msg.sender, _inputAmount);
+        indexFactoryStorage.setBurnedTokenAmountByNonce(redemptionNonce, _inputAmount);
+
+        emit RequestRedemption(redemptionNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
+        return redemptionNonce;
     }
 }
