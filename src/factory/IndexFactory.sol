@@ -18,6 +18,26 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     StagingCustodyAccount stagingCustodyAccount;
     IndexFactoryStorage indexFactoryStorage;
 
+    uint256 public issuanceNonce;
+
+    event RequestIssuance(
+        uint256 indexed nonce,
+        address indexed user,
+        address inputToken,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 time
+    );
+
+    event RequestCancelIssuance(
+        uint256 indexed nonce,
+        address indexed user,
+        address inputToken,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 time
+    );
+
     function initialize(address _stagingCustodyAccount, address _usdc) external initializer {
         stagingCustodyAccount = StagingCustodyAccount(_stagingCustodyAccount);
         usdc = IERC20(_usdc);
@@ -32,9 +52,32 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         _disableInitializers();
     }
 
-    function issuanceIndexToken(uint256 _inputAmount) public {
+    function issuanceIndexToken(uint256 _inputAmount) public nonReentrant whenNotPaused returns (uint256) {
+        require(_inputAmount > 0, "Invalid input amount");
         uint256 feeAmount = (_inputAmount * indexFactoryStorage.feeRate()) / 10000;
         IERC20(usdc).safeTransferFrom(msg.sender, address(stagingCustodyAccount), _inputAmount); // should change to quantityIn
         IERC20(usdc).safeTransferFrom(msg.sender, indexFactoryStorage.feeReceiver(), feeAmount);
+        stagingCustodyAccount.recordDeposit(msg.sender, _inputAmount); // should change to quantityIn
+
+        issuanceNonce++;
+        indexFactoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
+
+        emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
+        return issuanceNonce;
+    }
+
+    function cancelIssuance(uint256 _issuanceNonce) public whenNotPaused nonReentrant {
+        require(!indexFactoryStorage.issuanceIsCompleted(_issuanceNonce), "Issuance is completed");
+        address requester = indexFactoryStorage.issuanceRequesterByNonce(_issuanceNonce);
+        require(msg.sender == requester, "Only requester can cancel the issuance");
+
+        emit RequestCancelIssuance(
+            _issuanceNonce,
+            requester,
+            address(usdc),
+            indexFactoryStorage.issuanceInputAmount(_issuanceNonce),
+            0,
+            block.timestamp
+        );
     }
 }
