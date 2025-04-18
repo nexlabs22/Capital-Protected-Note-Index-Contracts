@@ -3,6 +3,7 @@ pragma solidity ^0.8.7;
 
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "../src/vault/Vault.sol";
 import "./mocks/MockERC20.sol";
@@ -12,9 +13,9 @@ contract VaultTest is Test {
     MockERC20 token;
     address operator = address(0x1);
 
-    function setUp() external {
-        vault = new Vault();
-        vault.initialize(operator);
+    function setUp() public {
+        Vault vaultImlp = new Vault();
+        vault = Vault(address(new ERC1967Proxy(address(vaultImlp), abi.encodeCall(Vault.initialize, (operator)))));
         token = new MockERC20("Test", "TST");
         token.mint(address(this), 10000e18);
     }
@@ -22,13 +23,13 @@ contract VaultTest is Test {
     function test_withdrawFunds_FailWhenCallerIsNotOperator() public {
         vault.setOperator(operator, true);
 
-        address token = address(0x2);
+        address token1 = address(0x2);
         address to = address(0x3);
         uint256 amount = 1 ether;
 
         vm.startPrank(address(0x4));
-        vm.expectRevert("Vault: caller is not an operator");
-        vault.withdrawFunds(token, to, amount);
+        vm.expectRevert("NexVault: caller is not an operator");
+        vault.withdrawFunds(token1, to, amount);
         vm.stopPrank();
     }
 
