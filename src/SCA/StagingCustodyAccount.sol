@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 
 contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -14,8 +15,10 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
 
     IERC20 public immutable quoteToken;
+    IERC20 public immutable usdc;
     uint256 public depositCounter;
     uint256 public withdrawCounter;
+    address public crypto5FactoryAddress;
 
     struct Deposit {
         address requester;
@@ -39,8 +42,17 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     event FundsWithdrawn(uint256 indexed id, address indexed to, uint256 amount);
     event Rescue(address indexed token, address indexed to, uint256 amount);
 
-    constructor(IERC20 _quoteToken, address _admin, address _bot, address _factory) {
+    constructor(
+        IERC20 _quoteToken,
+        address _admin,
+        address _bot,
+        address _factory,
+        address _crypto5FactoryAddress,
+        address _usdc
+    ) {
         quoteToken = _quoteToken;
+        crypto5FactoryAddress = _crypto5FactoryAddress;
+        usdc = IERC20(_usdc);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(MANAGER_ROLE, _admin);
         _grantRole(BOT_ROLE, _bot);
@@ -74,5 +86,11 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     function rescue(address token, address to, uint256 amount) external onlyRole(MANAGER_ROLE) {
         IERC20(token).safeTransfer(to, amount);
         emit Rescue(token, to, amount);
+    }
+
+    function issuanceCrypto5(uint256 usdcAmount, address[] memory _tokenInPath, uint24[] memory _tokenInFees) public {
+        ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
+            address(usdc), _tokenInPath, _tokenInFees, usdcAmount
+        );
     }
 }
