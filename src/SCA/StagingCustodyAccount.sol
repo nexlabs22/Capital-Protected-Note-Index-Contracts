@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {IndexFactory} from "../factory/IndexFactory.sol";
 
 contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -19,6 +20,7 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     uint256 public depositCounter;
     uint256 public withdrawCounter;
     address public crypto5FactoryAddress;
+    address public indexFactoryAddress;
 
     struct Deposit {
         address requester;
@@ -48,10 +50,12 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         address _bot,
         address _factory,
         address _crypto5FactoryAddress,
-        address _usdc
+        address _usdc,
+        address _indexFactoryAddress
     ) {
         quoteToken = _quoteToken;
         crypto5FactoryAddress = _crypto5FactoryAddress;
+        indexFactoryAddress = _indexFactoryAddress;
         usdc = IERC20(_usdc);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(MANAGER_ROLE, _admin);
@@ -92,5 +96,6 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
             address(usdc), _tokenInPath, _tokenInFees, usdcAmount
         );
+        IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
     }
 }
