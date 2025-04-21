@@ -13,6 +13,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     address public feeReceiver;
     uint256 public feeRate;
+    uint256 public currentRoundId;
     bool public isMainnet;
 
     mapping(uint256 => bool) public issuanceIsCompleted;
@@ -20,6 +21,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public issuanceInputAmount;
     mapping(uint256 => uint256) public redemptionInputAmount;
     mapping(uint256 => uint256) public burnedTokenAmountByNonce;
+    // mapping(uint256 => address[]) roundIdToAddresses;
+    mapping(uint256 => address[]) private roundIdToAddresses;
 
     modifier onlyFactory() {
         // require(
@@ -60,5 +63,23 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function setBurnedTokenAmountByNonce(uint256 _redemptionNonce, uint256 _burnedAmount) external onlyFactory {
         require(_burnedAmount > 0, "Invalid burn amount");
         burnedTokenAmountByNonce[_redemptionNonce] = _burnedAmount;
+    }
+
+    function setRoundIdToAddresses(uint256 _roundId, address[] memory addresses) external onlyFactory {
+        require(_roundId > 0, "Invalid roundId amount");
+        roundIdToAddresses[_roundId] = addresses;
+    }
+
+    function increaseCurrentRoundId() external onlyFactory {
+        currentRoundId++;
+    }
+
+    function pushAddressToCurrentRound(address account) external onlyFactory {
+        roundIdToAddresses[currentRoundId].push(account);
+    }
+
+    /// view helper so bots / frontends can fetch the list
+    function addressesInRound(uint256 roundId) external view returns (address[] memory) {
+        return roundIdToAddresses[roundId];
     }
 }

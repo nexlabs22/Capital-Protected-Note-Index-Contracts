@@ -52,13 +52,17 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
-    function initialize(address _indexToken, address _stagingCustodyAccount, address _functionsOracle, address _usdc)
-        external
-        initializer
-    {
+    function initialize(
+        address _indexToken,
+        address _stagingCustodyAccount,
+        address _functionsOracle,
+        address _usdc,
+        address _indexFactoryStorage
+    ) external initializer {
         indexToken = IndexToken(_indexToken);
         functionsOracle = FunctionsOracle(_functionsOracle);
         stagingCustodyAccount = StagingCustodyAccount(_stagingCustodyAccount);
+        indexFactoryStorage = IndexFactoryStorage(_indexFactoryStorage);
         usdc = IERC20(_usdc);
 
         __Ownable_init(msg.sender);
@@ -80,6 +84,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         issuanceNonce++;
         indexFactoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
+        indexFactoryStorage.pushAddressToCurrentRound(msg.sender);
 
         emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
         return issuanceNonce;
@@ -110,5 +115,9 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         emit RequestRedemption(redemptionNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
         return redemptionNonce;
+    }
+
+    function increaseCurrentRoundId() external {
+        indexFactoryStorage.increaseCurrentRoundId();
     }
 }
