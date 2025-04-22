@@ -5,8 +5,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 import {IndexFactory} from "../factory/IndexFactory.sol";
+import {IndexToken} from "../token/IndexToken.sol";
+import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
+import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 
 contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -15,12 +19,16 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
 
+    IndexToken indexToken;
+    IndexFactoryStorage indexFactoryStorage;
+    FunctionsOracle public functionsOracle;
     IERC20 public immutable quoteToken;
     IERC20 public immutable usdc;
     uint256 public depositCounter;
     uint256 public withdrawCounter;
     address public crypto5FactoryAddress;
     address public indexFactoryAddress;
+    address public nexBot;
 
     struct Deposit {
         address requester;
@@ -39,23 +47,35 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     mapping(uint256 id => Deposit) public deposits;
     mapping(uint256 id => Withdraw) public withdraws;
 
-    event DepositRecorded(uint256 indexed id, address indexed requester, uint256 amount);
-    event WithdrawRecorded(uint256 indexed id, address indexed requester, uint256 amount);
-    event FundsWithdrawn(uint256 indexed id, address indexed to, uint256 amount);
-    event Rescue(address indexed token, address indexed to, uint256 amount);
+    event DepositRecorded(uint256 indexed id, address indexed requester, uint256 amount, uint256 indexed timestamp);
+    event WithdrawRecorded(uint256 indexed id, address indexed requester, uint256 amount, uint256 indexed timestamp);
+    event FundsWithdrawn(uint256 indexed id, address indexed to, uint256 amount, uint256 indexed timestamp);
+    event Rescue(address indexed token, address indexed to, uint256 amount, uint256 indexed timestamp);
+    event WithdrawnForPurchase(uint256 indexed roundId, uint256 indexed amount, uint256 indexed timestamp);
+    event TokensDistributed(
+        uint256 indexed roundId, uint256 indexed indexTokenAmount, uint256 indexed usdcAmount, uint256 timestamp
+    );
 
     constructor(
         IERC20 _quoteToken,
+        address _indexToken,
         address _admin,
         address _bot,
         address _factory,
         address _crypto5FactoryAddress,
         address _usdc,
-        address _indexFactoryAddress
+        address _indexFactoryAddress,
+        address _indexFactroyStorageAddress,
+        address _nexBotAddress,
+        address _functionsOracle
     ) {
         quoteToken = _quoteToken;
         crypto5FactoryAddress = _crypto5FactoryAddress;
         indexFactoryAddress = _indexFactoryAddress;
+        nexBot = _nexBotAddress;
+        indexFactoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
+        functionsOracle = FunctionsOracle(_functionsOracle);
+        indexToken = IndexToken(_indexToken);
         usdc = IERC20(_usdc);
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(MANAGER_ROLE, _admin);
@@ -63,39 +83,88 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         _grantRole(FACTORY_ROLE, _factory);
     }
 
-    function recordDeposit(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
-        require(amount > 0, "SCA: zero amount");
-        uint256 id = ++depositCounter;
-        deposits[id] =
-            Deposit({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
-        emit DepositRecorded(id, requester, amount);
-    }
+    // function recordDeposit(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
+    //     require(amount > 0, "SCA: zero amount");
+    //     uint256 id = ++depositCounter;
+    //     deposits[id] =
+    //         Deposit({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
+    //     emit DepositRecorded(id, requester, amount, block.timestamp);
+    // }
 
-    function recordWithdraw(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
-        require(amount > 0, "SCA: zero amount");
-        uint256 id = ++withdrawCounter;
-        withdraws[id] =
-            Withdraw({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
-        emit WithdrawRecorded(id, requester, amount);
-    }
+    // function recordWithdraw(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
+    //     require(amount > 0, "SCA: zero amount");
+    //     uint256 id = ++withdrawCounter;
+    //     withdraws[id] =
+    //         Withdraw({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
+    //     emit WithdrawRecorded(id, requester, amount, block.timestamp);
+    // }
 
-    function withdrawForPurchase(uint256 id, address to) external onlyRole(BOT_ROLE) nonReentrant {
-        Deposit storage dep = deposits[id];
-        require(!dep.processed, "SCA: already processed");
-        dep.processed = true;
-        quoteToken.safeTransfer(to, dep.amount);
-        emit FundsWithdrawn(id, to, dep.amount);
+    // function withdrawForPurchase(uint256 id, address to) external onlyRole(BOT_ROLE) nonReentrant {
+    //     require(to == nexBot, "to is not equal to Nex bot address");
+    //     Deposit storage dep = deposits[id];
+    //     require(!dep.processed, "SCA: already processed");
+    //     dep.processed = true;
+    //     quoteToken.safeTransfer(to, dep.amount);
+    //     emit FundsWithdrawn(id, to, dep.amount);
+    // }
+
+    function withdrawForPurchase(uint256 roundId) external onlyRole(BOT_ROLE) nonReentrant {
+        uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
+        require(total > 0, "Nothing to withdraw");
+        uint256 balance = IERC20(usdc).balanceOf(address(this));
+        require(balance > 0, "USDC Balance is Zero!");
+        IERC20(usdc).safeTransfer(nexBot, balance);
+        emit WithdrawnForPurchase(roundId, balance, block.timestamp);
     }
 
     function rescue(address token, address to, uint256 amount) external onlyRole(MANAGER_ROLE) {
         IERC20(token).safeTransfer(to, amount);
-        emit Rescue(token, to, amount);
+        emit Rescue(token, to, amount, block.timestamp);
     }
 
-    function issuanceCrypto5(uint256 usdcAmount, address[] memory _tokenInPath, uint24[] memory _tokenInFees) public {
+    function issuanceCrypto5(uint256 usdcAmount, address[] memory _tokenInPath, uint24[] memory _tokenInFees)
+        public
+        onlyRole(BOT_ROLE)
+    {
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
             address(usdc), _tokenInPath, _tokenInFees, usdcAmount
         );
-        IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
+        // IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
+    }
+
+    function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyRole(BOT_ROLE) {
+        require(roundId <= indexFactoryStorage.currentRoundId(), "Invalid roundId");
+        for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
+            address tokenAddress = functionsOracle.currentList(i);
+            uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
+            IERC20(tokenAddress).safeTransfer(indexFactoryStorage.nexVault(), balance);
+        }
+
+        address[] memory addrs = indexFactoryStorage.addressesInRound(roundId);
+        uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
+        require(total > 0, "Nothing to distribute");
+
+        indexToken.mint(address(this), mintAmount);
+
+        uint256 distributed;
+        for (uint256 i = 0; i < addrs.length; i++) {
+            address user = addrs[i];
+            uint256 owed = (mintAmount * indexFactoryStorage.issuanceAmountByRoundUser(roundId, user)) / total;
+            if (owed > 0) {
+                indexToken.transfer(user, owed);
+                distributed += owed;
+            }
+        }
+
+        uint256 remainder = mintAmount - distributed;
+        if (remainder > 0) {
+            indexToken.transfer(indexFactoryStorage.feeReceiver(), remainder);
+        }
+
+        // indexFactoryStorage.increaseCurrentRoundId();
+
+        indexFactoryStorage.settleRound(roundId);
+
+        emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
     }
 }
