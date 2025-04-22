@@ -52,6 +52,11 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
+    modifier onlyOwnerOrOperator() {
+        require(msg.sender == owner() || functionsOracle.isOperator(msg.sender), "Caller is not the owner or operator");
+        _;
+    }
+
     function initialize(
         address _indexToken,
         address _stagingCustodyAccount,
@@ -63,6 +68,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         functionsOracle = FunctionsOracle(_functionsOracle);
         stagingCustodyAccount = StagingCustodyAccount(_stagingCustodyAccount);
         indexFactoryStorage = IndexFactoryStorage(_indexFactoryStorage);
+
         usdc = IERC20(_usdc);
 
         __Ownable_init(msg.sender);
@@ -80,11 +86,14 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 feeAmount = (_inputAmount * indexFactoryStorage.feeRate()) / 10000;
         IERC20(usdc).safeTransferFrom(msg.sender, address(stagingCustodyAccount), _inputAmount); // should change to quantityIn
         IERC20(usdc).safeTransferFrom(msg.sender, indexFactoryStorage.feeReceiver(), feeAmount);
-        stagingCustodyAccount.recordDeposit(msg.sender, _inputAmount); // should change to quantityIn
+        // stagingCustodyAccount.recordDeposit(msg.sender, _inputAmount); // should change to quantityIn
 
         issuanceNonce++;
         indexFactoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
-        indexFactoryStorage.pushAddressToCurrentRound(msg.sender);
+        indexFactoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
+
+        // indexFactoryStorage.pushAddressToCurrentRound(msg.sender);
+        indexFactoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
         emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
         return issuanceNonce;
@@ -117,7 +126,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         return redemptionNonce;
     }
 
-    function increaseCurrentRoundId() external {
+    function increaseCurrentRoundId() external onlyOwnerOrOperator {
         indexFactoryStorage.increaseCurrentRoundId();
     }
 }

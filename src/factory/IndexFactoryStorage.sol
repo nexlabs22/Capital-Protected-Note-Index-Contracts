@@ -12,6 +12,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     FunctionsOracle public functionsOracle;
 
     address public feeReceiver;
+    address public nexVault;
     uint256 public feeRate;
     uint256 public currentRoundId;
     bool public isMainnet;
@@ -21,8 +22,13 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public issuanceInputAmount;
     mapping(uint256 => uint256) public redemptionInputAmount;
     mapping(uint256 => uint256) public burnedTokenAmountByNonce;
-    // mapping(uint256 => address[]) roundIdToAddresses;
     mapping(uint256 => address[]) private roundIdToAddresses;
+    // roundId → user → amount deposited in that round
+    mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
+    // roundId → total amount deposited (denominator for share calculations)
+    mapping(uint256 => uint256) public totalIssuanceByRound;
+
+    event RoundSettled(uint256 indexed roundId);
 
     modifier onlyFactory() {
         // require(
@@ -33,14 +39,19 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         _;
     }
 
-    function initialize(address _indexFactory, address _functionsOracle, bool _isMainnet) external initializer {
+    function initialize(address _indexFactory, address _functionsOracle, address _nexVault, bool _isMainnet)
+        external
+        initializer
+    {
         require(_indexFactory != address(0), "invalid index factory address");
         require(_functionsOracle != address(0), "invalid functions oracle address");
 
         indexFactory = IndexFactory(_indexFactory);
         functionsOracle = FunctionsOracle(_functionsOracle);
+        nexVault = _nexVault;
         isMainnet = _isMainnet;
 
+        currentRoundId = 1;
         feeRate = 10;
         feeReceiver = msg.sender;
     }
@@ -74,12 +85,44 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         currentRoundId++;
     }
 
-    function pushAddressToCurrentRound(address account) external onlyFactory {
-        roundIdToAddresses[currentRoundId].push(account);
+    function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
+        // if (issuanceAmountByRoundUser[currentRoundId][account] == 0 && totalIssuanceByRound[currentRoundId] != 0) {
+        //     roundIdToAddresses[currentRoundId].push(account);
+        // }
+        if (issuanceAmountByRoundUser[currentRoundId][account] == 0) {
+            roundIdToAddresses[currentRoundId].push(account);
+        }
+        issuanceAmountByRoundUser[currentRoundId][account] += amount;
+        totalIssuanceByRound[currentRoundId] += amount;
     }
 
-    /// view helper so bots / frontends can fetch the list
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
         return roundIdToAddresses[roundId];
     }
+
+    function setIssuanceRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
+        issuanceRequesterByNonce[nonce] = requester;
+    }
+
+    function settleRound(uint256 roundId) external onlyFactory {
+        address[] storage list = roundIdToAddresses[roundId];
+        for (uint256 i = 0; i < list.length; ++i) {
+            delete issuanceAmountByRoundUser[roundId][list[i]];
+        }
+        delete roundIdToAddresses[roundId];
+
+        delete totalIssuanceByRound[roundId];
+
+        issuanceIsCompleted[roundId] = true;
+
+        emit RoundSettled(roundId);
+
+        currentRoundId = roundId + 1;
+    }
+
+    // function pushAddressToCurrentRound(address account) external onlyFactory {
+    //     roundIdToAddresses[currentRoundId].push(account);
+    // }
+
+    uint256[45] private __gap;
 }
