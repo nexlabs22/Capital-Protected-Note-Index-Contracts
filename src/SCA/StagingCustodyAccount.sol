@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 import {IndexFactory} from "../factory/IndexFactory.sol";
@@ -13,16 +14,17 @@ import {IndexToken} from "../token/IndexToken.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 
-contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard {
+contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
-    bytes32 public constant BOT_ROLE = keccak256("BOT_ROLE");
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-    bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
+    // bytes32 public constant BOT_ROLE = keccak256("BOT_ROLE");
+    // bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    // bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
 
     IndexToken indexToken;
     IndexFactoryStorage indexFactoryStorage;
     FunctionsOracle public functionsOracle;
+    IndexFactory factory;
     IERC20 public quoteToken;
     IERC20 public usdc;
     uint256 public depositCounter;
@@ -57,6 +59,14 @@ contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard 
         uint256 indexed roundId, uint256 indexed indexTokenAmount, uint256 indexed usdcAmount, uint256 timestamp
     );
 
+    modifier onlyOwnerOrOperator() {
+        require(
+            msg.sender == owner() || functionsOracle.isOperator(msg.sender) || msg.sender == nexBot,
+            "Caller is not the owner or operator"
+        );
+        _;
+    }
+
     function initialize(
         IERC20 _quoteToken,
         address _indexToken,
@@ -74,14 +84,15 @@ contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         indexFactoryAddress = _indexFactoryAddress;
         nexBot = _nexBotAddress;
+        factory = IndexFactory(_factory);
         indexFactoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
         functionsOracle = FunctionsOracle(_functionsOracle);
         indexToken = IndexToken(_indexToken);
         usdc = IERC20(_usdc);
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        _grantRole(MANAGER_ROLE, _admin);
-        _grantRole(BOT_ROLE, _bot);
-        _grantRole(FACTORY_ROLE, _factory);
+        // _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        // _grantRole(MANAGER_ROLE, _admin);
+        // _grantRole(BOT_ROLE, _bot);
+        // _grantRole(FACTORY_ROLE, _factory);
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -114,7 +125,7 @@ contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard 
     //     emit FundsWithdrawn(id, to, dep.amount);
     // }
 
-    function withdrawForPurchase(uint256 roundId) external onlyRole(BOT_ROLE) nonReentrant {
+    function withdrawForPurchase(uint256 roundId) external onlyOwnerOrOperator nonReentrant {
         uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to withdraw");
         uint256 balance = IERC20(usdc).balanceOf(address(this));
@@ -123,14 +134,14 @@ contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard 
         emit WithdrawnForPurchase(roundId, balance, block.timestamp);
     }
 
-    function rescue(address token, address to, uint256 amount) external onlyRole(MANAGER_ROLE) {
+    function rescue(address token, address to, uint256 amount) external onlyOwnerOrOperator {
         IERC20(token).safeTransfer(to, amount);
         emit Rescue(token, to, amount, block.timestamp);
     }
 
     function issuanceCrypto5(uint256 usdcAmount, address[] memory _tokenInPath, uint24[] memory _tokenInFees)
         public
-        onlyRole(BOT_ROLE)
+        onlyOwnerOrOperator
     {
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
             address(usdc), _tokenInPath, _tokenInFees, usdcAmount
@@ -138,7 +149,7 @@ contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard 
         // IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
     }
 
-    function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyRole(BOT_ROLE) {
+    function distributeTokens(uint256 mintAmount, uint256 roundId) external /*onlyRole(BOT_ROLE)*/ {
         require(roundId <= indexFactoryStorage.currentRoundId(), "Invalid roundId");
         for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
             address tokenAddress = functionsOracle.currentList(i);

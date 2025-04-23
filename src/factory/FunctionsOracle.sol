@@ -108,7 +108,7 @@ contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
         _initData(_tokens, _marketShares);
     }
 
-    function _initData(address[] memory _tokens, uint256[] memory _marketShares) private {
+    function _initData(address[] memory _tokens, uint256[] memory _marketShares) internal {
         address[] memory tokens0 = _tokens;
         uint256[] memory marketShares0 = _marketShares;
 

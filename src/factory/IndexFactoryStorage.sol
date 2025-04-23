@@ -16,6 +16,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     uint256 public feeRate;
     uint256 public currentRoundId;
     bool public isMainnet;
+    address nexBot;
 
     mapping(uint256 => bool) public issuanceIsCompleted;
     mapping(uint256 => address) public issuanceRequesterByNonce;
@@ -35,14 +36,25 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         //     msg.sender == factoryAddress || msg.sender == factoryBalancerAddress, "Caller is not a factory contract"
         // );
         // _;
-        require(msg.sender == address(indexFactory), "Caller is not a factory contract");
+        require(msg.sender == address(indexFactory) || msg.sender == nexBot, "Caller is not a factory contract");
         _;
     }
 
-    function initialize(address _indexFactory, address _functionsOracle, address _nexVault, bool _isMainnet)
-        external
-        initializer
-    {
+    modifier onlyOwnerOrOperator() {
+        require(
+            msg.sender == owner() || functionsOracle.isOperator(msg.sender) || msg.sender == nexBot,
+            "Caller is not the owner or operator"
+        );
+        _;
+    }
+
+    function initialize(
+        address _indexFactory,
+        address _functionsOracle,
+        address _nexVault,
+        bool _isMainnet,
+        address _nexBot
+    ) external initializer {
         require(_indexFactory != address(0), "invalid index factory address");
         require(_functionsOracle != address(0), "invalid functions oracle address");
 
@@ -50,6 +62,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         functionsOracle = FunctionsOracle(_functionsOracle);
         nexVault = _nexVault;
         isMainnet = _isMainnet;
+        nexBot = _nexBot;
 
         currentRoundId = 1;
         feeRate = 10;
@@ -59,6 +72,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
+    }
+
+    function setFeeReceiver(address _feeReceiver) public onlyOwner {
+        require(_feeReceiver != address(0), "invalid fee receiver address");
+        feeReceiver = _feeReceiver;
     }
 
     function setIssuanceInputAmount(uint256 _issuanceNonce, uint256 _amount) external onlyFactory {
@@ -104,7 +122,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         issuanceRequesterByNonce[nonce] = requester;
     }
 
-    function settleRound(uint256 roundId) external onlyFactory {
+    function settleRound(uint256 roundId) external onlyOwnerOrOperator {
         address[] storage list = roundIdToAddresses[roundId];
         for (uint256 i = 0; i < list.length; ++i) {
             delete issuanceAmountByRoundUser[roundId][list[i]];
