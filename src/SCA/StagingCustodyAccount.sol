@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 import {IndexFactory} from "../factory/IndexFactory.sol";
@@ -12,7 +13,7 @@ import {IndexToken} from "../token/IndexToken.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 
-contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
+contract StagingCustodyAccount is Initializable, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     bytes32 public constant BOT_ROLE = keccak256("BOT_ROLE");
@@ -22,8 +23,8 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
     IndexToken indexToken;
     IndexFactoryStorage indexFactoryStorage;
     FunctionsOracle public functionsOracle;
-    IERC20 public immutable quoteToken;
-    IERC20 public immutable usdc;
+    IERC20 public quoteToken;
+    IERC20 public usdc;
     uint256 public depositCounter;
     uint256 public withdrawCounter;
     address public crypto5FactoryAddress;
@@ -56,7 +57,7 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         uint256 indexed roundId, uint256 indexed indexTokenAmount, uint256 indexed usdcAmount, uint256 timestamp
     );
 
-    constructor(
+    function initialize(
         IERC20 _quoteToken,
         address _indexToken,
         address _admin,
@@ -68,7 +69,7 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         address _indexFactroyStorageAddress,
         address _nexBotAddress,
         address _functionsOracle
-    ) {
+    ) external initializer {
         quoteToken = _quoteToken;
         crypto5FactoryAddress = _crypto5FactoryAddress;
         indexFactoryAddress = _indexFactoryAddress;
@@ -81,6 +82,11 @@ contract StagingCustodyAccount is AccessControl, ReentrancyGuard {
         _grantRole(MANAGER_ROLE, _admin);
         _grantRole(BOT_ROLE, _bot);
         _grantRole(FACTORY_ROLE, _factory);
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     // function recordDeposit(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
