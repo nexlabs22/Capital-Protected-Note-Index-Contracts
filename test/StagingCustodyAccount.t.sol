@@ -19,8 +19,8 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
 }
 
 contract TestFunctionsOracle is FunctionsOracle {
-    function seed(address[] calldata tkns, uint256[] calldata shares) external {
-        _initData(tkns, shares);
+    function seed(address[] calldata tkn, uint256[] calldata shr) external {
+        _initData(tkn, shr);
     }
 }
 
@@ -102,6 +102,9 @@ contract StagingCustodyAccountTest is Test {
             sca = StagingCustodyAccount(address(proxy));
         }
 
+        vm.prank(address(this));
+        store.transferOwnership(address(sca));
+
         idx.setMinter(address(sca), true);
 
         vm.startPrank(factory);
@@ -123,10 +126,8 @@ contract StagingCustodyAccountTest is Test {
     }
 
     function testDistributeAndSettle() public {
-        uint256 mintAmt = 1_000 ether;
-
         vm.prank(nexBot);
-        sca.distributeTokens(mintAmt, 1);
+        sca.distributeTokens(1_000 ether, 1);
 
         assertEq(idx.balanceOf(alice), 600 ether);
         assertEq(idx.balanceOf(bob), 400 ether);
