@@ -38,7 +38,7 @@ contract ChainlinkClientTest is Test, ChainlinkClient {
         assertEq(req.callbackFunctionId, callbackFunctionSignature);
     }
 
-    function testBuildOperatorRequest() public {
+    function testBuildOperatorRequest() public view {
         bytes32 specId = "specId";
         bytes4 callbackFunctionSignature = this.fulfill.selector;
 
@@ -138,7 +138,6 @@ contract ChainlinkClientTest is Test, ChainlinkClient {
 
     function testSetPublicChainlinkToken() public {
         address mockLinkAddress = address(linkToken);
-        MockPointerInterface mockPointer = new MockPointerInterface(mockLinkAddress);
 
         vm.mockCall(
             0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
@@ -217,7 +216,6 @@ contract ChainlinkClientTest is Test, ChainlinkClient {
 
     function testSetPublicChainlinkToken_Success() public {
         address mockLinkAddress = address(linkToken);
-        MockPointerInterface mockPointer = new MockPointerInterface(mockLinkAddress);
 
         vm.mockCall(
             0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
@@ -243,11 +241,11 @@ contract ChainlinkClientTest is Test, ChainlinkClient {
         assertEq(newCount, initialCount + 2, "Request count did not increment correctly");
     }
 
-    function testChainlinkTokenAddress() public {
+    function testChainlinkTokenAddress() public view {
         assertEq(chainlinkTokenAddress(), address(linkToken));
     }
 
-    function testChainlinkOracleAddress() public {
+    function testChainlinkOracleAddress() public view {
         assertEq(chainlinkOracleAddress(), address(mockOracle));
     }
 }
@@ -267,8 +265,8 @@ contract MockPointerInterface is PointerInterface {
 contract MockENS is ENSInterface {
     mapping(bytes32 => address) private resolvers;
 
-    function setResolver(bytes32 node, address resolver) public {
-        resolvers[node] = resolver;
+    function setResolver(bytes32 node, address resl) public {
+        resolvers[node] = resl;
     }
 
     function resolver(bytes32 node) external view override returns (address) {
@@ -295,13 +293,13 @@ contract MockENS is ENSInterface {
 contract MockENSResolver is ENSResolver_Chainlink {
     mapping(bytes32 => address) private addresses;
 
-    function setAddr(bytes32 node, address addr) public {
-        addresses[node] = addr;
+    function setAddr(bytes32 node, address addrs) public {
+        addresses[node] = addrs;
     }
 
     function addr(bytes32 node) public view override returns (address) {
-        address addr = addresses[node];
-        require(addr != address(0), "Address not set for this node");
-        return addr;
+        address addrs = addresses[node];
+        require(addrs != address(0), "Address not set for this node");
+        return addrs;
     }
 }
