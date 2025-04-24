@@ -58,6 +58,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         require(_indexFactory != address(0), "invalid index factory address");
         require(_functionsOracle != address(0), "invalid functions oracle address");
 
+        __Ownable_init(msg.sender);
+
         indexFactory = IndexFactory(_indexFactory);
         functionsOracle = FunctionsOracle(_functionsOracle);
         nexVault = _nexVault;

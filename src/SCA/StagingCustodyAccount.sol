@@ -67,6 +67,11 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         _;
     }
 
+    modifier onlyNexBot() {
+        require(msg.sender == nexBot, "Caller is not the NEX bot");
+        _;
+    }
+
     function initialize(
         IERC20 _quoteToken,
         address _indexToken,
@@ -80,6 +85,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address _nexBotAddress,
         address _functionsOracle
     ) external initializer {
+        __Ownable_init(msg.sender);
+
         quoteToken = _quoteToken;
         crypto5FactoryAddress = _crypto5FactoryAddress;
         indexFactoryAddress = _indexFactoryAddress;
@@ -89,41 +96,12 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         functionsOracle = FunctionsOracle(_functionsOracle);
         indexToken = IndexToken(_indexToken);
         usdc = IERC20(_usdc);
-        // _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        // _grantRole(MANAGER_ROLE, _admin);
-        // _grantRole(BOT_ROLE, _bot);
-        // _grantRole(FACTORY_ROLE, _factory);
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
-
-    // function recordDeposit(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
-    //     require(amount > 0, "SCA: zero amount");
-    //     uint256 id = ++depositCounter;
-    //     deposits[id] =
-    //         Deposit({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
-    //     emit DepositRecorded(id, requester, amount, block.timestamp);
-    // }
-
-    // function recordWithdraw(address requester, uint256 amount) external onlyRole(FACTORY_ROLE) nonReentrant {
-    //     require(amount > 0, "SCA: zero amount");
-    //     uint256 id = ++withdrawCounter;
-    //     withdraws[id] =
-    //         Withdraw({requester: requester, amount: amount, timestamp: uint40(block.timestamp), processed: false});
-    //     emit WithdrawRecorded(id, requester, amount, block.timestamp);
-    // }
-
-    // function withdrawForPurchase(uint256 id, address to) external onlyRole(BOT_ROLE) nonReentrant {
-    //     require(to == nexBot, "to is not equal to Nex bot address");
-    //     Deposit storage dep = deposits[id];
-    //     require(!dep.processed, "SCA: already processed");
-    //     dep.processed = true;
-    //     quoteToken.safeTransfer(to, dep.amount);
-    //     emit FundsWithdrawn(id, to, dep.amount);
-    // }
 
     function withdrawForPurchase(uint256 roundId) external onlyOwnerOrOperator nonReentrant {
         uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
@@ -149,7 +127,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         // IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
     }
 
-    function distributeTokens(uint256 mintAmount, uint256 roundId) external /*onlyRole(BOT_ROLE)*/ {
+    function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyNexBot {
         require(roundId <= indexFactoryStorage.currentRoundId(), "Invalid roundId");
         for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
             address tokenAddress = functionsOracle.currentList(i);
