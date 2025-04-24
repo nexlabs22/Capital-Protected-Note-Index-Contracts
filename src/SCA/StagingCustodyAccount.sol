@@ -17,15 +17,10 @@ import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
-    // bytes32 public constant BOT_ROLE = keccak256("BOT_ROLE");
-    // bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-    // bytes32 public constant FACTORY_ROLE = keccak256("FACTORY_ROLE");
-
     IndexToken indexToken;
     IndexFactoryStorage indexFactoryStorage;
     FunctionsOracle public functionsOracle;
     IndexFactory factory;
-    IERC20 public quoteToken;
     IERC20 public usdc;
     uint256 public depositCounter;
     uint256 public withdrawCounter;
@@ -33,26 +28,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     address public indexFactoryAddress;
     address public nexBot;
 
-    struct Deposit {
-        address requester;
-        uint256 amount;
-        uint40 timestamp;
-        bool processed;
-    }
-
-    struct Withdraw {
-        address requester;
-        uint256 amount;
-        uint40 timestamp;
-        bool processed;
-    }
-
-    mapping(uint256 id => Deposit) public deposits;
-    mapping(uint256 id => Withdraw) public withdraws;
-
-    event DepositRecorded(uint256 indexed id, address indexed requester, uint256 amount, uint256 indexed timestamp);
-    event WithdrawRecorded(uint256 indexed id, address indexed requester, uint256 amount, uint256 indexed timestamp);
-    event FundsWithdrawn(uint256 indexed id, address indexed to, uint256 amount, uint256 indexed timestamp);
     event Rescue(address indexed token, address indexed to, uint256 amount, uint256 indexed timestamp);
     event WithdrawnForPurchase(uint256 indexed roundId, uint256 indexed amount, uint256 indexed timestamp);
     event TokensDistributed(
@@ -73,10 +48,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function initialize(
-        IERC20 _quoteToken,
         address _indexToken,
-        address _admin,
-        address _bot,
         address _factory,
         address _crypto5FactoryAddress,
         address _usdc,
@@ -87,7 +59,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     ) external initializer {
         __Ownable_init(msg.sender);
 
-        quoteToken = _quoteToken;
         crypto5FactoryAddress = _crypto5FactoryAddress;
         indexFactoryAddress = _indexFactoryAddress;
         nexBot = _nexBotAddress;
