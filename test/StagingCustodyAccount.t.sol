@@ -85,10 +85,7 @@ contract StagingCustodyAccountTest is Test {
                 abi.encodeCall(
                     StagingCustodyAccount.initialize,
                     (
-                        IERC20(address(usdc)),
                         address(idx),
-                        admin,
-                        nexBot,
                         factory,
                         address(0xDEADBEEF),
                         address(usdc),
