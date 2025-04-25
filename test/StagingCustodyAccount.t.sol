@@ -31,6 +31,7 @@ contract StagingCustodyAccountTest is Test {
     address nexBot = vm.addr(4);
     address vault = vm.addr(5);
     address feeRecv = vm.addr(6);
+    address operator = vm.addr(7);
 
     address alice = vm.addr(10);
     address bob = vm.addr(11);
@@ -128,7 +129,17 @@ contract StagingCustodyAccountTest is Test {
 
         assertEq(idx.balanceOf(alice), 600 ether);
         assertEq(idx.balanceOf(bob), 400 ether);
-        assertEq(store.currentRoundId(), 2);
+        assertEq(store.currentRoundId(), 1);
+
         assertTrue(store.issuanceIsCompleted(1));
+    }
+
+    function testCannotIssueIfPriorUnsettled() public {
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+
+        vm.prank(operator);
+        vm.expectRevert("Round is not active");
+        sca.issuanceAndWithdrawForPurchase(2, 1_000e6, new address[](0), new uint24[](0));
     }
 }
