@@ -6,7 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 import {IndexFactory} from "../factory/IndexFactory.sol";
@@ -60,7 +60,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         __Ownable_init(msg.sender);
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
-        indexFactoryAddress = _indexFactoryAddress;
+        // indexFactoryAddress = _indexFactoryAddress;
         nexBot = _nexBotAddress;
         factory = IndexFactory(_factory);
         indexFactoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
@@ -74,7 +74,20 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         _disableInitializers();
     }
 
-    function withdrawForPurchase(uint256 roundId) external onlyOwnerOrOperator nonReentrant {
+    function issuanceAndWithdrawForPurchase(
+        uint256 roundId,
+        uint256 usdcAmount,
+        address[] memory _tokenInPath,
+        uint24[] memory _tokenInFees
+    ) public onlyOwnerOrOperator {
+        require(indexFactoryStorage.roundIdIsActive(roundId), "Round is not active");
+        require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
+        issuanceCrypto5(usdcAmount, _tokenInPath, _tokenInFees);
+        withdrawForPurchase(roundId);
+        factory.increaseCurrentRoundId();
+    }
+
+    function withdrawForPurchase(uint256 roundId) public onlyOwnerOrOperator nonReentrant {
         uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to withdraw");
         uint256 balance = IERC20(usdc).balanceOf(address(this));
@@ -95,7 +108,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
             address(usdc), _tokenInPath, _tokenInFees, usdcAmount
         );
-        // IndexFactory(indexFactoryAddress).increaseCurrentRoundId();
     }
 
     function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyNexBot {
@@ -127,10 +139,18 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             indexToken.transfer(indexFactoryStorage.feeReceiver(), remainder);
         }
 
-        // indexFactoryStorage.increaseCurrentRoundId();
-
         indexFactoryStorage.settleRound(roundId);
 
         emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
+    }
+
+    function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
+        if (roundId <= 1) return true;
+        for (uint256 i = 1; i < roundId; ++i) {
+            if (indexFactoryStorage.roundIdIsActive(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

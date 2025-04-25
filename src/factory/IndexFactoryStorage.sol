@@ -28,14 +28,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
     // roundId → total amount deposited (denominator for share calculations)
     mapping(uint256 => uint256) public totalIssuanceByRound;
+    mapping(uint256 => bool) public roundIdIsActive;
 
     event RoundSettled(uint256 indexed roundId);
 
     modifier onlyFactory() {
-        // require(
-        //     msg.sender == factoryAddress || msg.sender == factoryBalancerAddress, "Caller is not a factory contract"
-        // );
-        // _;
         require(msg.sender == address(indexFactory) || msg.sender == nexBot, "Caller is not a factory contract");
         _;
     }
@@ -106,15 +103,28 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
-        // if (issuanceAmountByRoundUser[currentRoundId][account] == 0 && totalIssuanceByRound[currentRoundId] != 0) {
-        //     roundIdToAddresses[currentRoundId].push(account);
-        // }
+        /* mark round as active the very first time it sees flow */
+        if (!roundIdIsActive[currentRoundId]) {
+            roundIdIsActive[currentRoundId] = true;
+        }
+
         if (issuanceAmountByRoundUser[currentRoundId][account] == 0) {
             roundIdToAddresses[currentRoundId].push(account);
         }
         issuanceAmountByRoundUser[currentRoundId][account] += amount;
         totalIssuanceByRound[currentRoundId] += amount;
     }
+
+    // function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
+    //     // if (issuanceAmountByRoundUser[currentRoundId][account] == 0 && totalIssuanceByRound[currentRoundId] != 0) {
+    //     //     roundIdToAddresses[currentRoundId].push(account);
+    //     // }
+    //     if (issuanceAmountByRoundUser[currentRoundId][account] == 0) {
+    //         roundIdToAddresses[currentRoundId].push(account);
+    //     }
+    //     issuanceAmountByRoundUser[currentRoundId][account] += amount;
+    //     totalIssuanceByRound[currentRoundId] += amount;
+    // }
 
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
         return roundIdToAddresses[roundId];
@@ -134,10 +144,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         delete totalIssuanceByRound[roundId];
 
         issuanceIsCompleted[roundId] = true;
+        roundIdIsActive[roundId] = false;
 
         emit RoundSettled(roundId);
 
-        currentRoundId = roundId + 1;
+        // currentRoundId = roundId + 1;
     }
 
     // function pushAddressToCurrentRound(address account) external onlyFactory {
