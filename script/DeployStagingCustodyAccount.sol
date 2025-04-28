@@ -32,7 +32,7 @@ contract DeployStagingCustodyAccount is Script {
             owner,
             abi.encodeCall(
                 StagingCustodyAccount.initialize,
-                (address(0), address(0), address(0), address(0), address(0), address(0), address(0), address(0))
+                (address(0), address(0), address(0), address(0), address(0), address(0), address(0))
             )
         );
 
