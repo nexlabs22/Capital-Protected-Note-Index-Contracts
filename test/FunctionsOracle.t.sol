@@ -100,4 +100,56 @@ contract FunctionsOracleProxyTest is Test {
         vm.expectRevert("caller must be factory balancer");
         oracle.updateCurrentList();
     }
+
+    function test_setFunctionsRouterAddress_FailWhenFunctionsRouterAddressIsZero() public {
+        vm.startPrank(owner);
+
+        vm.expectRevert("invalid functions router address");
+        oracle.setFunctionsRouterAddress(address(0));
+
+        vm.stopPrank();
+    }
+
+    function test_setFactoryBalancer_FailWhenFactoryBalancerAddressIsInvalid() public {
+        vm.startPrank(owner);
+
+        vm.expectRevert("invalid factory balancer address");
+        oracle.setFactoryBalancer(address(0));
+
+        vm.stopPrank();
+    }
+
+    function test_requestAssetsData_FailWhenSenderIsNotOwnerOrOperator() public {
+        vm.expectRevert("Caller is not the owner or operator.");
+        oracle.requestAssetsData("", 0, 0);
+    }
+
+    function test_initData_SuccessfulInitData() public {
+        address[] memory t = new address[](2);
+        uint256[] memory s = new uint256[](2);
+        t[0] = tokenA;
+        t[1] = tokenB;
+        s[0] = 70e18;
+        s[1] = 30e18;
+
+        vm.prank(owner);
+        oracle.exposed_initData(t, s);
+
+        assertEq(oracle.oracleList(0), tokenA);
+        assertEq(oracle.tokenOracleMarketShare(tokenB), 30e18);
+        assertEq(oracle.totalOracleList(), 2);
+
+        assertEq(oracle.currentList(1), tokenB);
+        assertEq(oracle.totalCurrentList(), 2);
+
+        vm.prank(owner);
+        oracle.exposed_initData(t, s);
+
+        assertEq(oracle.oracleList(0), tokenA);
+        assertEq(oracle.tokenOracleMarketShare(tokenB), 30e18);
+        assertEq(oracle.totalOracleList(), 2);
+
+        assertEq(oracle.currentList(1), tokenB);
+        assertEq(oracle.totalCurrentList(), 2);
+    }
 }

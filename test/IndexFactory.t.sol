@@ -2,14 +2,13 @@
 pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {IndexToken} from "../src/token/IndexToken.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {IndexFactory} from "../src/factory/IndexFactory.sol";
-
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -23,7 +22,7 @@ contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryIssuanceTest is Test {
+contract IndexFactoryTest is Test {
     address alice = vm.addr(1);
     address feeRecv = vm.addr(2);
 
@@ -87,5 +86,43 @@ contract IndexFactoryIssuanceTest is Test {
     function testIssuanceZeroRevert() public {
         vm.expectRevert("Invalid input amount");
         factory.issuanceIndexToken(0);
+    }
+
+    function test_cancelIssuance_FailWhenIssuanceIsCompleted() public {
+        uint256 inAmt = 10_000 * ONE_USDC;
+
+        vm.prank(alice);
+        uint256 nonce = factory.issuanceIndexToken(inAmt);
+
+        vm.prank(address(this));
+        store.settleRound(1);
+
+        vm.prank(alice);
+        vm.expectRevert("Issuance is completed");
+        factory.cancelIssuance(nonce);
+    }
+
+    function test_cancelIssuance_FailWhenSenderIsNotRequester() public {
+        uint256 inAmt = 10_000 * ONE_USDC;
+
+        vm.prank(alice);
+        uint256 nonce = factory.issuanceIndexToken(inAmt);
+
+        vm.prank(address(this));
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelIssuance(nonce);
+    }
+
+    function test_increaseCurrentRoundId_FailWhenSenderIsNotOwnerOrOperator() public {
+        vm.startPrank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        factory.increaseCurrentRoundId();
+        vm.stopPrank();
+    }
+
+    function test_increaseCurrentRoundId_SuccessfulIncreaseCurrentRoundId() public {
+        vm.prank(address(this));
+        factory.increaseCurrentRoundId();
+        assertEq(store.currentRoundId(), 2);
     }
 }

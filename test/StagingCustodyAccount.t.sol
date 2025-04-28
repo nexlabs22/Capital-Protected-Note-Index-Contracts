@@ -2,15 +2,14 @@
 pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {IndexToken} from "../src/token/IndexToken.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
-
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -85,16 +84,7 @@ contract StagingCustodyAccountTest is Test {
                 address(impl),
                 abi.encodeCall(
                     StagingCustodyAccount.initialize,
-                    (
-                        address(idx),
-                        factory,
-                        address(0xDEADBEEF),
-                        address(usdc),
-                        factory,
-                        address(store),
-                        nexBot,
-                        address(oracle)
-                    )
+                    (address(idx), factory, address(0xDEADBEEF), address(usdc), address(store), nexBot, address(oracle))
                 )
             );
             sca = StagingCustodyAccount(address(proxy));
@@ -115,12 +105,15 @@ contract StagingCustodyAccountTest is Test {
 
     function testWithdrawForPurchase() public {
         uint256 pre = usdc.balanceOf(nexBot);
+        uint256 preload = 100_000 * ONE_USDC;
+
+        uint256 amt80 = (preload * 80) / 100;
 
         vm.prank(nexBot);
-        sca.withdrawForPurchase(1);
+        sca.withdrawForPurchase(1, amt80);
 
-        assertEq(usdc.balanceOf(address(sca)), 0);
-        assertEq(usdc.balanceOf(nexBot), pre + 100_000 * ONE_USDC);
+        assertEq(usdc.balanceOf(nexBot), pre + amt80);
+        assertEq(usdc.balanceOf(address(sca)), preload - amt80);
     }
 
     function testDistributeAndSettle() public {
@@ -138,8 +131,105 @@ contract StagingCustodyAccountTest is Test {
         vm.prank(factory);
         store.addIssuanceForCurrentRound(alice, 100);
 
-        vm.prank(operator);
+        vm.prank(nexBot);
         vm.expectRevert("Round is not active");
-        sca.issuanceAndWithdrawForPurchase(2, 1_000e6, new address[](0), new uint24[](0));
+        sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
+    }
+
+    function test_issuanceAndWithdrawForPurchase_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
+
+        vm.stopPrank();
+    }
+
+    function test_withdrawForPurchase_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.withdrawForPurchase(1, 1);
+
+        vm.stopPrank();
+    }
+
+    function test_withdrawForPurchase_FailWhenTotalIssuanceByRoundIsZero() public {
+        vm.startPrank(nexBot);
+
+        vm.expectRevert("Nothing to withdraw");
+        sca.withdrawForPurchase(2, 1);
+
+        vm.stopPrank();
+    }
+
+    function test_withdrawForPurchase_FailWhenAmountIsZero() public {
+        vm.startPrank(nexBot);
+
+        vm.expectRevert("zero amount");
+        sca.withdrawForPurchase(1, 0);
+
+        vm.stopPrank();
+    }
+
+    function test_rescue_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.rescue(address(usdc), address(0x123), 1000);
+
+        vm.stopPrank();
+    }
+
+    function test_rescue_SuccessfulRescue() public {
+        vm.startPrank(nexBot);
+
+        sca.rescue(address(usdc), address(0x123), 1000);
+
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(address(0x123)), 1000);
+        assertEq(usdc.balanceOf(address(sca)), 100_000 * ONE_USDC - 1000);
+    }
+
+    function test_issuanceCrypto5_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.issuanceCrypto5(1, new address[](0), new uint24[](0));
+
+        vm.stopPrank();
+    }
+
+    function test_distributeTokens_FailWhenCallerIsNotNexBot() public {
+        vm.startPrank(factory);
+
+        vm.expectRevert("Caller is not the NEX bot");
+        sca.distributeTokens(1_000 ether, 1);
+
+        vm.stopPrank();
+    }
+
+    function test_distributeTokens_FailWhenRoundIdIsGreaterThanCurrentRoundId() public {
+        vm.startPrank(nexBot);
+
+        vm.expectRevert("Invalid roundId");
+        sca.distributeTokens(1_000 ether, 2);
+
+        vm.stopPrank();
+    }
+
+    function test_distributeTokens_SuccessfulDistributeWhenOwedIsZero() public {
+        vm.startPrank(nexBot);
+
+        sca.distributeTokens(1, 1);
+
+        vm.stopPrank();
+
+        assertEq(idx.balanceOf(alice), 0);
+        assertEq(idx.balanceOf(bob), 0);
+        assertEq(store.currentRoundId(), 1);
+
+        assertTrue(store.issuanceIsCompleted(1));
     }
 }

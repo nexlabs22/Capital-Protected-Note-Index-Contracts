@@ -4,12 +4,13 @@ pragma solidity 0.8.25;
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/factory/IndexFactoryStorage.sol";
+import "./OlympixUnitTest.sol";
 
 contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryStorageTest is Test {
+contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     address factory = vm.addr(1);
     address vault = vm.addr(2);
     address nexBot = vm.addr(3);
@@ -121,5 +122,78 @@ contract IndexFactoryStorageTest is Test {
         store.setFeeReceiver(newRecv);
 
         assertEq(store.feeReceiver(), newRecv);
+    }
+
+    function test_initialize_FailWhenIndexFactoryAddressIsInvalid() public {
+        vm.startPrank(owner);
+
+        DummyOracle oracle = new DummyOracle();
+
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("invalid index factory address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(IndexFactoryStorage.initialize, (address(0), address(oracle), vault, false, nexBot))
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenFunctionsOracleAddressIsInvalid() public {
+        vm.startPrank(owner);
+
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("invalid functions oracle address");
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(IndexFactoryStorage.initialize, (factory, address(0), vault, false, nexBot))
+        );
+        vm.stopPrank();
+    }
+
+    function testSetFeeReceiverFailWhenFeeReceiverIsInvalid() public {
+        vm.startPrank(owner);
+        vm.expectRevert("invalid fee receiver address");
+        store.setFeeReceiver(address(0));
+        vm.stopPrank();
+    }
+
+    function test_setRedemptionInputAmount_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.setRedemptionInputAmount(1, 100);
+    }
+
+    function test_setBurnedTokenAmountByNonce_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.setBurnedTokenAmountByNonce(1, 1);
+    }
+
+    function testSetRoundIdToAddresses_FailWhenSenderIsNotFactory() public {
+        address[] memory arr = new address[](2);
+        arr[0] = alice;
+        arr[1] = bob;
+
+        vm.expectRevert("Caller is not a factory contract");
+        store.setRoundIdToAddresses(1, arr);
+    }
+
+    function test_increaseCurrentRoundId_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.increaseCurrentRoundId();
+    }
+
+    function test_addIssuanceForCurrentRound_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.addIssuanceForCurrentRound(alice, 100);
+    }
+
+    function testSettleRound_FailWhenCallerIsNotOwnerOrOperator() public {
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, 80);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(bob, 20);
+
+        vm.prank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        store.settleRound(1);
     }
 }
