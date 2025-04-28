@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
@@ -86,32 +86,30 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 feeAmount = (_inputAmount * indexFactoryStorage.feeRate()) / 10000;
         IERC20(usdc).safeTransferFrom(msg.sender, address(stagingCustodyAccount), _inputAmount); // should change to quantityIn
         IERC20(usdc).safeTransferFrom(msg.sender, indexFactoryStorage.feeReceiver(), feeAmount);
-        // stagingCustodyAccount.recordDeposit(msg.sender, _inputAmount); // should change to quantityIn
 
         issuanceNonce++;
         indexFactoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
         indexFactoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
 
-        // indexFactoryStorage.pushAddressToCurrentRound(msg.sender);
         indexFactoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
         emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
         return issuanceNonce;
     }
 
-    function cancelIssuance(uint256 _issuanceNonce) public whenNotPaused nonReentrant {
-        require(!indexFactoryStorage.issuanceIsCompleted(_issuanceNonce), "Issuance is completed");
-        address requester = indexFactoryStorage.issuanceRequesterByNonce(_issuanceNonce);
-        require(msg.sender == requester, "Only requester can cancel the issuance");
+    function cancelIssuance(uint256 nonce) external nonReentrant whenNotPaused {
+        require(!indexFactoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
+        address requester = indexFactoryStorage.issuanceRequesterByNonce(nonce);
+        require(msg.sender == requester, "Only requester can cancel");
 
-        emit RequestCancelIssuance(
-            _issuanceNonce,
-            requester,
-            address(usdc),
-            indexFactoryStorage.issuanceInputAmount(_issuanceNonce),
-            0,
-            block.timestamp
-        );
+        uint256 amt = indexFactoryStorage.issuanceInputAmount(nonce);
+        require(amt > 0, "nothing to refund");
+
+        stagingCustodyAccount.refund(requester, amt);
+        indexFactoryStorage.undoIssuance(requester, amt);
+        indexFactoryStorage.setIssuanceCompleted(nonce, true);
+
+        emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
     }
 
     function redemption(uint256 _inputAmount) public nonReentrant whenNotPaused returns (uint256) {

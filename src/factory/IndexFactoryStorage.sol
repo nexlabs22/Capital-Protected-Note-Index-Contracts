@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {IndexFactory} from "../factory/IndexFactory.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
@@ -24,9 +24,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public redemptionInputAmount;
     mapping(uint256 => uint256) public burnedTokenAmountByNonce;
     mapping(uint256 => address[]) private roundIdToAddresses;
-    // roundId → user → amount deposited in that round
     mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
-    // roundId → total amount deposited (denominator for share calculations)
     mapping(uint256 => uint256) public totalIssuanceByRound;
     mapping(uint256 => bool) public roundIdIsActive;
 
@@ -98,12 +96,15 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         roundIdToAddresses[_roundId] = addresses;
     }
 
+    function setIssuanceCompleted(uint256 nonce, bool flag) external onlyFactory {
+        issuanceIsCompleted[nonce] = flag;
+    }
+
     function increaseCurrentRoundId() external onlyFactory {
         currentRoundId++;
     }
 
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
-        /* mark round as active the very first time it sees flow */
         if (!roundIdIsActive[currentRoundId]) {
             roundIdIsActive[currentRoundId] = true;
         }
@@ -115,23 +116,36 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         totalIssuanceByRound[currentRoundId] += amount;
     }
 
-    // function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
-    //     // if (issuanceAmountByRoundUser[currentRoundId][account] == 0 && totalIssuanceByRound[currentRoundId] != 0) {
-    //     //     roundIdToAddresses[currentRoundId].push(account);
-    //     // }
-    //     if (issuanceAmountByRoundUser[currentRoundId][account] == 0) {
-    //         roundIdToAddresses[currentRoundId].push(account);
-    //     }
-    //     issuanceAmountByRoundUser[currentRoundId][account] += amount;
-    //     totalIssuanceByRound[currentRoundId] += amount;
-    // }
-
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
         return roundIdToAddresses[roundId];
     }
 
     function setIssuanceRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
         issuanceRequesterByNonce[nonce] = requester;
+    }
+
+    function undoIssuance(address account, uint256 amount) external onlyFactory {
+        uint256 round = currentRoundId;
+
+        uint256 before = issuanceAmountByRoundUser[round][account];
+        require(before >= amount && amount > 0, "bad amount");
+
+        issuanceAmountByRoundUser[round][account] = before - amount;
+        totalIssuanceByRound[round] -= amount;
+
+        if (issuanceAmountByRoundUser[round][account] == 0) {
+            address[] storage arr = roundIdToAddresses[round];
+            for (uint256 i; i < arr.length; ++i) {
+                if (arr[i] == account) {
+                    arr[i] = arr[arr.length - 1];
+                    arr.pop();
+                    break;
+                }
+            }
+            if (arr.length == 0) {
+                roundIdIsActive[round] = false;
+            }
+        }
     }
 
     function settleRound(uint256 roundId) external onlyOwnerOrOperator {
@@ -147,13 +161,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         roundIdIsActive[roundId] = false;
 
         emit RoundSettled(roundId);
-
-        // currentRoundId = roundId + 1;
     }
-
-    // function pushAddressToCurrentRound(address account) external onlyFactory {
-    //     roundIdToAddresses[currentRoundId].push(account);
-    // }
 
     uint256[45] private __gap;
 }

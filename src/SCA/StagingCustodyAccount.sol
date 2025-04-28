@@ -52,7 +52,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address _factory,
         address _crypto5FactoryAddress,
         address _usdc,
-        address _indexFactoryAddress,
         address _indexFactroyStorageAddress,
         address _nexBotAddress,
         address _functionsOracle
@@ -60,7 +59,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         __Ownable_init(msg.sender);
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
-        // indexFactoryAddress = _indexFactoryAddress;
         nexBot = _nexBotAddress;
         factory = IndexFactory(_factory);
         indexFactoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
@@ -76,24 +74,26 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function issuanceAndWithdrawForPurchase(
         uint256 roundId,
-        uint256 usdcAmount,
-        address[] memory _tokenInPath,
-        uint24[] memory _tokenInFees
+        address[] calldata _tokenInPath,
+        uint24[] calldata _tokenInFees
     ) public onlyOwnerOrOperator {
         require(indexFactoryStorage.roundIdIsActive(roundId), "Round is not active");
         require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
-        issuanceCrypto5(usdcAmount, _tokenInPath, _tokenInFees);
-        withdrawForPurchase(roundId);
+        uint256 balance = usdc.balanceOf(address(this));
+        require(balance > 0, "USDC Balance is Zero!");
+        uint256 amount20 = (balance * 20) / 100;
+        uint256 amount80 = balance - amount20;
+        issuanceCrypto5(amount20, _tokenInPath, _tokenInFees);
+        withdrawForPurchase(roundId, amount80);
         factory.increaseCurrentRoundId();
     }
 
-    function withdrawForPurchase(uint256 roundId) public onlyOwnerOrOperator nonReentrant {
-        uint256 total = indexFactoryStorage.totalIssuanceByRound(roundId);
-        require(total > 0, "Nothing to withdraw");
-        uint256 balance = IERC20(usdc).balanceOf(address(this));
-        require(balance > 0, "USDC Balance is Zero!");
-        IERC20(usdc).safeTransfer(nexBot, balance);
-        emit WithdrawnForPurchase(roundId, balance, block.timestamp);
+    function withdrawForPurchase(uint256 roundId, uint256 amount) public onlyOwnerOrOperator nonReentrant {
+        require(indexFactoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
+        require(amount > 0, "zero amount");
+
+        IERC20(usdc).safeTransfer(nexBot, amount);
+        emit WithdrawnForPurchase(roundId, amount, block.timestamp);
     }
 
     function rescue(address token, address to, uint256 amount) external onlyOwnerOrOperator {
@@ -101,7 +101,12 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit Rescue(token, to, amount, block.timestamp);
     }
 
-    function issuanceCrypto5(uint256 usdcAmount, address[] memory _tokenInPath, uint24[] memory _tokenInFees)
+    function refund(address to, uint256 amount) external onlyOwnerOrOperator {
+        require(to != address(0) && amount > 0, "bad refund");
+        usdc.safeTransfer(to, amount);
+    }
+
+    function issuanceCrypto5(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
         public
         onlyOwnerOrOperator
     {
