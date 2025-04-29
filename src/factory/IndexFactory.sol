@@ -112,17 +112,33 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
     }
 
-    function redemption(uint256 _inputAmount) public nonReentrant whenNotPaused returns (uint256) {
-        require(_inputAmount > 0, "Invalid input amount");
-        redemptionNonce++;
-        indexFactoryStorage.setRedemptionInputAmount(redemptionNonce, _inputAmount);
-        // uint256 tokenBurnPercent = _inputAmount * 1e18 / indexToken.totalSupply();
-        indexToken.burn(msg.sender, _inputAmount);
-        indexFactoryStorage.setBurnedTokenAmountByNonce(redemptionNonce, _inputAmount);
+    function redemption(uint256 amount) external returns (uint256 nonce) {
+        require(amount > 0, "Invalid amount");
+        indexToken.transferFrom(msg.sender, address(stagingCustodyAccount), amount);
 
-        emit RequestRedemption(redemptionNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
-        return redemptionNonce;
+        nonce = ++redemptionNonce;
+
+        indexFactoryStorage.setRedemptionInputAmount(nonce, amount);
+        indexFactoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
+        indexFactoryStorage.addRedemptionForCurrentRound(msg.sender, amount);
+        emit RequestRedemption(nonce, msg.sender, address(usdc), amount, 0, block.timestamp);
     }
+
+    // function redemption(uint256 amt) external nonReentrant whenNotPaused returns (uint256) {
+    //     require(amt > 0, "Invalid amount");
+
+    //     indexToken.transferFrom(msg.sender, address(stagingCustodyAccount), amt);
+
+    //     redemptionNonce++;
+    //     uint256 nonce = redemptionNonce;
+
+    //     indexFactoryStorage.setRedemptionInputAmount(nonce, amt);
+    //     indexFactoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
+    //     indexFactoryStorage.addRedemptionForCurrentRound(msg.sender, amt);
+
+    //     emit RequestRedemption(nonce, msg.sender, address(usdc), amt, 0, block.timestamp);
+    //     return nonce;
+    // }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {
         indexFactoryStorage.increaseCurrentRoundId();

@@ -15,6 +15,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     address public nexVault;
     uint256 public feeRate;
     uint256 public currentRoundId;
+    uint256 public redemptionRoundId;
+
     bool public isMainnet;
     address nexBot;
 
@@ -27,6 +29,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
     mapping(uint256 => uint256) public totalIssuanceByRound;
     mapping(uint256 => bool) public roundIdIsActive;
+    mapping(uint256 => mapping(address => uint256)) public redemptionAmountByRoundUser;
+    mapping(uint256 => uint256) public totalRedemptionByRound;
+    mapping(uint256 => bool) public redemptionRoundActive;
+    mapping(uint256 => bool) public redemptionRoundCompleted;
+    mapping(uint256 => address[]) private redemptionAddrs;
 
     event RoundSettled(uint256 indexed roundId);
 
@@ -62,6 +69,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         nexBot = _nexBot;
 
         currentRoundId = 1;
+        redemptionRoundId = 1;
         feeRate = 10;
         feeReceiver = msg.sender;
     }
@@ -116,6 +124,19 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         totalIssuanceByRound[currentRoundId] += amount;
     }
 
+    function addRedemptionForCurrentRound(address user, uint256 amount) external onlyFactory {
+        uint256 roundId = redemptionRoundId;
+
+        if (!roundIdIsActive[currentRoundId]) roundIdIsActive[currentRoundId] = true;
+
+        if (redemptionAmountByRoundUser[currentRoundId][user] == 0) {
+            redemptionAddrs[roundId].push(user);
+        }
+
+        redemptionAmountByRoundUser[currentRoundId][user] += amount;
+        totalRedemptionByRound[currentRoundId] += amount;
+    }
+
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
         return roundIdToAddresses[roundId];
     }
@@ -148,7 +169,20 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         }
     }
 
-    function settleRound(uint256 roundId) external onlyOwnerOrOperator {
+    function undoRedemption(address user, uint256 amount) external onlyFactory {
+        uint256 roundId = currentRoundId;
+        uint256 before = redemptionAmountByRoundUser[roundId][user];
+        require(amount > 0 && before >= amount, "bad amount");
+
+        redemptionAmountByRoundUser[roundId][user] = before - amount;
+        totalRedemptionByRound[roundId] -= amount;
+
+        if (redemptionAmountByRoundUser[roundId][user] == 0) {
+            _pruneAddress(roundId, user);
+        }
+    }
+
+    function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
         address[] storage list = roundIdToAddresses[roundId];
         for (uint256 i = 0; i < list.length; ++i) {
             delete issuanceAmountByRoundUser[roundId][list[i]];
@@ -161,6 +195,33 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         roundIdIsActive[roundId] = false;
 
         emit RoundSettled(roundId);
+    }
+
+    function settleRedemption(uint256 roundId) external onlyOwnerOrOperator {
+        address[] storage list = redemptionAddrs[roundId];
+        for (uint256 i = 0; i < list.length; ++i) {
+            delete redemptionAmountByRoundUser[roundId][list[i]];
+        }
+        delete redemptionAddrs[roundId];
+        delete totalRedemptionByRound[roundId];
+
+        redemptionRoundCompleted[roundId] = true;
+        redemptionRoundActive[roundId] = false;
+        emit RoundSettled(roundId);
+
+        ++redemptionRoundId;
+    }
+
+    function _pruneAddress(uint256 round, address user) internal {
+        address[] storage arr = roundIdToAddresses[round];
+        for (uint256 i; i < arr.length; ++i) {
+            if (arr[i] == user) {
+                arr[i] = arr[arr.length - 1];
+                arr.pop();
+                break;
+            }
+        }
+        if (arr.length == 0) roundIdIsActive[round] = false;
     }
 
     uint256[45] private __gap;

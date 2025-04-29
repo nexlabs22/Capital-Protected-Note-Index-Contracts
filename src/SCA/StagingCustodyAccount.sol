@@ -115,6 +115,15 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         );
     }
 
+    function redemptionCrypto5(
+        uint256 amountIn,
+        address _tokenOut,
+        address[] memory _tokenOutPath,
+        uint24[] memory _tokenOutFees
+    ) public onlyOwnerOrOperator {
+        ICrypto5Factory(crypto5FactoryAddress).redemption(amountIn, _tokenOut, _tokenOutPath, _tokenOutFees);
+    }
+
     function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyNexBot {
         require(roundId <= indexFactoryStorage.currentRoundId(), "Invalid roundId");
         for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
@@ -144,9 +153,32 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             indexToken.transfer(indexFactoryStorage.feeReceiver(), remainder);
         }
 
-        indexFactoryStorage.settleRound(roundId);
+        indexFactoryStorage.settleIssuance(roundId);
 
         emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
+    }
+
+    function settleRedemption(uint256 roundId, uint256 usdcReceived) external onlyNexBot {
+        require(indexFactoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
+
+        usdc.safeTransferFrom(msg.sender, address(this), usdcReceived);
+
+        address[] memory users = indexFactoryStorage.addressesInRound(roundId);
+        uint256 total = indexFactoryStorage.totalRedemptionByRound(roundId);
+        uint256 distributed;
+
+        for (uint256 i; i < users.length; ++i) {
+            address user = users[i];
+            uint256 share = indexFactoryStorage.redemptionAmountByRoundUser(roundId, user);
+            uint256 owed = usdcReceived * share / total;
+            if (owed > 0) {
+                usdc.safeTransfer(user, owed);
+                indexToken.burn(address(this), share);
+                distributed += owed;
+            }
+        }
+
+        indexFactoryStorage.settleRedemption(roundId);
     }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {

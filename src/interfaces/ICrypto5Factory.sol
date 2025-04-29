@@ -8,4 +8,11 @@ interface ICrypto5Factory {
         uint24[] memory _tokenInFees,
         uint256 _inputAmount
     ) external payable;
+
+    function redemption(
+        uint256 amountIn,
+        address _tokenOut,
+        address[] memory _tokenOutPath,
+        uint24[] memory _tokenOutFees
+    ) external payable;
 }
