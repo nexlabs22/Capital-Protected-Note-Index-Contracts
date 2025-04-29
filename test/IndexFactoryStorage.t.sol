@@ -4,13 +4,12 @@ pragma solidity 0.8.25;
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/factory/IndexFactoryStorage.sol";
-import "./OlympixUnitTest.sol";
 
 contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
+contract IndexFactoryStorageTest is Test {
     address factory = vm.addr(1);
     address vault = vm.addr(2);
     address nexBot = vm.addr(3);
@@ -53,7 +52,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.addIssuanceForCurrentRound(bob, 20);
 
         vm.prank(nexBot);
-        store.settleRound(1);
+        store.settleIssuance(1);
 
         // assertEq(store.currentRoundId(), 2);
         assertEq(store.currentRoundId(), 1);
@@ -194,6 +193,154 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
         vm.prank(alice);
         vm.expectRevert("Caller is not the owner or operator");
-        store.settleRound(1);
+        store.settleIssuance(1);
+    }
+
+    function test_setIssuanceCompleted_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.setIssuanceCompleted(1, true);
+    }
+
+    function test_setIssuanceCompleted_SuccessfulSetIssuanceCompleted() public {
+        vm.prank(factory);
+        store.setIssuanceCompleted(1, true);
+        assertEq(store.issuanceIsCompleted(1), true);
+    }
+
+    function test_addRedemptionForCurrentRound_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.addRedemptionForCurrentRound(alice, 100);
+    }
+
+    function test_addRedemptionForCurrentRound_SuccessfulAddRedemption() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.addRedemptionForCurrentRound(alice, 50);
+        vm.stopPrank();
+
+        assertEq(store.redemptionAmountByRoundUser(1, alice), 150);
+        assertEq(store.totalRedemptionByRound(1), 150);
+    }
+
+    function test_setIssuanceRequesterByNonce_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.setIssuanceRequesterByNonce(1, alice);
+    }
+
+    function test_undoIssuance_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.undoIssuance(alice, 1);
+    }
+
+    function test_undoIssuance_SuccessfulUndo() public {
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        store.addIssuanceForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoIssuance(alice, 30);
+        vm.stopPrank();
+
+        assertEq(store.issuanceAmountByRoundUser(1, alice), 70);
+        assertEq(store.totalIssuanceByRound(1), 120);
+    }
+
+    function test_undoIssuance_FailWhenAmountIsInvalid() public {
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        vm.expectRevert("bad amount");
+        store.undoIssuance(alice, 200);
+        vm.stopPrank();
+    }
+
+    function test_undoIssuance_SuccessfulUndoWhenIssuanceAmountIsZero() public {
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        store.addIssuanceForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoIssuance(alice, 100);
+        vm.stopPrank();
+
+        assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
+        assertEq(store.totalIssuanceByRound(1), 50);
+    }
+
+    function test_undoIssuance_SuccessfulUndoWhenRoundIdIsNotActive() public {
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        store.addIssuanceForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoIssuance(alice, 100);
+        store.undoIssuance(bob, 50);
+        vm.stopPrank();
+
+        assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
+        assertEq(store.issuanceAmountByRoundUser(1, bob), 0);
+        assertEq(store.totalIssuanceByRound(1), 0);
+        assertEq(store.roundIdIsActive(1), false);
+    }
+
+    function test_undoRedemption_FailWhenSenderIsNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.undoRedemption(alice, 1);
+    }
+
+    function test_undoRedemption_SuccessfulUndo() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.addRedemptionForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoRedemption(alice, 30);
+        vm.stopPrank();
+
+        assertEq(store.redemptionAmountByRoundUser(1, alice), 70);
+        assertEq(store.totalRedemptionByRound(1), 120);
+    }
+
+    function test_undoRedemption_FailWhenAmountIsInvalid() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        vm.expectRevert("bad amount");
+        store.undoRedemption(alice, 0);
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_FailWhenSenderIsNotOwnerOrOperator() public {
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(alice, 80);
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(bob, 20);
+
+        vm.prank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        store.settleRedemption(1);
+    }
+
+    function test_settleRedemption_SuccessfulSettleRedemption() public {
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(alice, 80);
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(bob, 20);
+
+        vm.prank(nexBot);
+        store.settleRedemption(1);
+
+        assertEq(store.redemptionRoundId(), 2);
+        assertEq(store.totalRedemptionByRound(1), 0);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
     }
 }

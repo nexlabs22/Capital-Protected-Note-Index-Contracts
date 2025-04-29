@@ -95,7 +95,7 @@ contract IndexFactoryTest is Test {
         uint256 nonce = factory.issuanceIndexToken(inAmt);
 
         vm.prank(address(this));
-        store.settleRound(1);
+        store.settleIssuance(1);
 
         vm.prank(alice);
         vm.expectRevert("Issuance is completed");
@@ -124,5 +124,12 @@ contract IndexFactoryTest is Test {
         vm.prank(address(this));
         factory.increaseCurrentRoundId();
         assertEq(store.currentRoundId(), 2);
+    }
+
+    function test_redemption_FailWhenAmountIsInvalid() public {
+        vm.startPrank(alice);
+        vm.expectRevert("Invalid amount");
+        factory.redemption(0);
+        vm.stopPrank();
     }
 }

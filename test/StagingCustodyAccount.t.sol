@@ -232,4 +232,52 @@ contract StagingCustodyAccountTest is Test {
 
         assertTrue(store.issuanceIsCompleted(1));
     }
+
+    function test_refund_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.refund(alice, 1);
+
+        vm.stopPrank();
+    }
+
+    function test_refund_FailWhenToIsZeroAddressOrAmountIsZero() public {
+        vm.startPrank(nexBot);
+
+        vm.expectRevert("bad refund");
+        sca.refund(address(0), 1);
+
+        vm.expectRevert("bad refund");
+        sca.refund(alice, 0);
+
+        vm.stopPrank();
+    }
+
+    function test_redemptionCrypto5_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.redemptionCrypto5(1, address(0), new address[](0), new uint24[](0));
+
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_FailWhenSenderIsNotNexBot() public {
+        vm.startPrank(alice);
+
+        vm.expectRevert("Caller is not the NEX bot");
+        sca.settleRedemption(1, 1);
+
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_FailWhenTotalRedemptionByRoundIsZero() public {
+        vm.startPrank(nexBot);
+
+        vm.expectRevert("nothing to settle");
+        sca.settleRedemption(2, 1);
+
+        vm.stopPrank();
+    }
 }
