@@ -33,7 +33,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public totalRedemptionByRound;
     mapping(uint256 => bool) public redemptionRoundActive;
     mapping(uint256 => bool) public redemptionRoundCompleted;
-    mapping(uint256 => address[]) private redemptionAddrs;
+    mapping(uint256 => address[]) public redemptionAddrs;
 
     event RoundSettled(uint256 indexed roundId);
 
@@ -127,14 +127,18 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function addRedemptionForCurrentRound(address user, uint256 amount) external onlyFactory {
         uint256 roundId = redemptionRoundId;
 
-        if (!roundIdIsActive[currentRoundId]) roundIdIsActive[currentRoundId] = true;
+        if (!roundIdIsActive[roundId]) roundIdIsActive[roundId] = true;
 
-        if (redemptionAmountByRoundUser[currentRoundId][user] == 0) {
+        if (redemptionAmountByRoundUser[roundId][user] == 0) {
             redemptionAddrs[roundId].push(user);
         }
 
-        redemptionAmountByRoundUser[currentRoundId][user] += amount;
-        totalRedemptionByRound[currentRoundId] += amount;
+        redemptionAmountByRoundUser[roundId][user] += amount;
+        totalRedemptionByRound[roundId] += amount;
+    }
+
+    function addressesInRedemptionRound(uint256 roundId) external view returns (address[] memory) {
+        return redemptionAddrs[roundId];
     }
 
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
