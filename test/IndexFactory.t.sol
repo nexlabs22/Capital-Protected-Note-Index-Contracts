@@ -9,6 +9,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IndexToken} from "../src/token/IndexToken.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {IndexFactory} from "../src/factory/IndexFactory.sol";
+import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -24,19 +25,23 @@ contract DummyOracle {
 
 contract IndexFactoryTest is Test {
     address alice = vm.addr(1);
+    address bob = vm.addr(5);
     address feeRecv = vm.addr(2);
+    address nexBot = vm.addr(3);
+    address oracle = vm.addr(4);
 
     MockUSDC usdc;
     IndexToken idx;
     IndexFactoryStorage store;
     IndexFactory factory;
-    DummyReceiver sca;
+    // DummyReceiver sca;
+    StagingCustodyAccount sca;
 
     uint256 constant ONE_USDC = 1e6;
 
     function setUp() public {
         usdc = new MockUSDC();
-        sca = new DummyReceiver();
+        // sca = new DummyReceiver();
 
         {
             IndexToken impl = new IndexToken();
@@ -61,11 +66,50 @@ contract IndexFactoryTest is Test {
         vm.prank(address(this));
         store.setFeeReceiver(feeRecv);
 
+        {
+            StagingCustodyAccount impl = new StagingCustodyAccount();
+            ERC1967Proxy proxy = new ERC1967Proxy(
+                address(impl),
+                abi.encodeCall(
+                    StagingCustodyAccount.initialize,
+                    (
+                        address(idx),
+                        address(factory),
+                        address(0xDEADBEEF),
+                        address(usdc),
+                        address(store),
+                        nexBot,
+                        address(oracle)
+                    )
+                )
+            );
+            sca = StagingCustodyAccount(address(proxy));
+        }
         factory.initialize(address(idx), address(sca), oracleAddr, address(usdc), address(store));
 
         usdc.mint(alice, 1_000_000 * ONE_USDC);
         vm.prank(alice);
         usdc.approve(address(factory), type(uint256).max);
+    }
+
+    function testIncreaseRoundIdNonOwnerAddr() public {
+        vm.startPrank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        factory.increaseCurrentRoundId();
+    }
+
+    function testCancelIssuanceWithNonRequesterAddress() public {
+        uint256 inputAmount = 10e18;
+        deal(address(usdc), alice, 20e18);
+        vm.startPrank(alice);
+        IERC20(usdc).approve(address(factory), inputAmount + 1e16);
+        factory.issuanceIndexToken(inputAmount);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelIssuance(1);
+        vm.stopPrank();
     }
 
     function testIssuanceHappyPath() public {

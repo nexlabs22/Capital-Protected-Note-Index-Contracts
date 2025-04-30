@@ -31,6 +31,21 @@ contract IndexFactoryStorageTest is Test {
             abi.encodeCall(IndexFactoryStorage.initialize, (factory, address(oracle), vault, false, nexBot))
         );
         store = IndexFactoryStorage(address(proxy));
+
+        vm.stopPrank();
+    }
+
+    function testSetIssuanceRequesterByNonceOtherAddress() public {
+        vm.startPrank(owner);
+        vm.expectRevert("Caller is not a factory contract");
+        store.setIssuanceRequesterByNonce(1, alice);
+    }
+
+    function testCallNotActiveRoundId() public {
+        vm.startPrank(owner);
+        store.settleIssuance(1);
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 1e18);
         vm.stopPrank();
     }
 
@@ -54,7 +69,6 @@ contract IndexFactoryStorageTest is Test {
         vm.prank(nexBot);
         store.settleIssuance(1);
 
-        // assertEq(store.currentRoundId(), 2);
         assertEq(store.currentRoundId(), 1);
         assertEq(store.totalIssuanceByRound(1), 0);
         assertEq(store.addressesInRound(1).length, 0);
