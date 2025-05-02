@@ -13,6 +13,7 @@ import {IndexFactory} from "../factory/IndexFactory.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
+import {Vault} from "../vault/Vault.sol";
 
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
@@ -21,12 +22,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     IndexFactoryStorage indexFactoryStorage;
     FunctionsOracle public functionsOracle;
     IndexFactory factory;
+    Vault public nexVault;
     IERC20 public usdc;
     uint256 public depositCounter;
     uint256 public withdrawCounter;
     address public crypto5FactoryAddress;
     address public indexFactoryAddress;
     address public nexBot;
+    address public bernx;
 
     event Rescue(address indexed token, address indexed to, uint256 amount, uint256 indexed timestamp);
     event WithdrawnForPurchase(uint256 indexed roundId, uint256 indexed amount, uint256 indexed timestamp);
@@ -54,16 +57,20 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address _usdc,
         address _indexFactroyStorageAddress,
         address _nexBotAddress,
-        address _functionsOracle
+        address _functionsOracle,
+        address _bernx
     ) external initializer {
         __Ownable_init(msg.sender);
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBotAddress;
+        bernx = _bernx;
         factory = IndexFactory(_factory);
         indexFactoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
         functionsOracle = FunctionsOracle(_functionsOracle);
         indexToken = IndexToken(_indexToken);
+        nexVault = Vault(indexFactoryStorage.nexVault());
+
         usdc = IERC20(_usdc);
     }
 
@@ -158,27 +165,95 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
     }
 
-    function settleRedemption(uint256 roundId, uint256 usdcReceived) external onlyNexBot {
+    function settleRedemption(uint256 roundId, uint256 usdcFromBernx, uint256 usdcFromCr5) external onlyNexBot {
         require(indexFactoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
+        require(indexFactoryStorage.redemptionRoundActive(roundId), "batch not started or already settled");
 
-        usdc.safeTransferFrom(msg.sender, address(this), usdcReceived);
+        if (usdcFromBernx > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), usdcFromBernx);
+        }
 
-        address[] memory users = indexFactoryStorage.addressesInRound(roundId);
-        uint256 total = indexFactoryStorage.totalRedemptionByRound(roundId);
-        uint256 distributed;
+        uint256 totalUSDC = usdcFromBernx + usdcFromCr5;
+        require(totalUSDC > 0, "zero USDC received");
+
+        address[] memory users = indexFactoryStorage.addressesInRedemptionRound(roundId);
+
+        uint256 totalIDX = indexFactoryStorage.totalRedemptionByRound(roundId);
+        uint256 paid;
 
         for (uint256 i; i < users.length; ++i) {
             address user = users[i];
-            uint256 share = indexFactoryStorage.redemptionAmountByRoundUser(roundId, user);
-            uint256 owed = usdcReceived * share / total;
+            uint256 idx = indexFactoryStorage.redemptionAmountByRoundUser(roundId, user);
+            uint256 owed = totalUSDC * idx / totalIDX;
+
             if (owed > 0) {
                 usdc.safeTransfer(user, owed);
-                indexToken.burn(address(this), share);
-                distributed += owed;
+                indexToken.burn(address(this), idx);
+                paid += owed;
             }
         }
 
+        uint256 dust = totalUSDC - paid;
+        if (dust > 0) usdc.safeTransfer(indexFactoryStorage.feeReceiver(), dust);
+
         indexFactoryStorage.settleRedemption(roundId);
+    }
+
+    // function settleRedemption(uint256 roundId, uint256 usdcReceived) external onlyNexBot {
+    //     require(indexFactoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
+
+    //     usdc.safeTransferFrom(msg.sender, address(this), usdcReceived);
+
+    //     address[] memory users = indexFactoryStorage.addressesInRound(roundId);
+    //     uint256 total = indexFactoryStorage.totalRedemptionByRound(roundId);
+    //     uint256 distributed;
+
+    //     for (uint256 i; i < users.length; ++i) {
+    //         address user = users[i];
+    //         uint256 share = indexFactoryStorage.redemptionAmountByRoundUser(roundId, user);
+    //         uint256 owed = usdcReceived * share / total;
+    //         if (owed > 0) {
+    //             usdc.safeTransfer(user, owed);
+    //             indexToken.burn(address(this), share);
+    //             distributed += owed;
+    //         }
+    //     }
+
+    //     indexFactoryStorage.settleRedemption(roundId);
+    // }
+
+    function initiateRedemptionBatch(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
+        external
+        onlyOwnerOrOperator
+    {
+        require(indexFactoryStorage.totalRedemptionByRound(roundId) > 0, "redemption round empty");
+        require(!indexFactoryStorage.redemptionRoundActive(roundId), "batch already started");
+        indexFactoryStorage.setRedemptionRoundActive(roundId, true);
+
+        uint256 pct1e18 = indexFactoryStorage.totalRedemptionByRound(roundId) * 1e18 / indexToken.totalSupply();
+
+        uint256 totalCurrentList = functionsOracle.totalCurrentList();
+        for (uint256 i; i < totalCurrentList; ++i) {
+            address comp = functionsOracle.currentList(i);
+            uint256 balance = IERC20(comp).balanceOf(address(nexVault));
+            if (balance == 0) continue;
+
+            uint256 slice = balance * pct1e18 / 1e18;
+            if (slice > 0) {
+                nexVault.withdrawFunds(comp, address(this), slice);
+            }
+        }
+
+        uint256 bernBalance = IERC20(bernx).balanceOf(address(nexVault));
+        uint256 bernSlice = bernBalance * pct1e18 / 1e18;
+        if (bernSlice > 0) {
+            nexVault.withdrawFunds(bernx, nexBot, bernSlice);
+        }
+
+        uint256 cr5Amount = IERC20(address(indexToken)).balanceOf(address(this));
+        if (cr5Amount > 0) {
+            redemptionCrypto5(cr5Amount, address(usdc), tokenOutPath, tokenOutFees);
+        }
     }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {

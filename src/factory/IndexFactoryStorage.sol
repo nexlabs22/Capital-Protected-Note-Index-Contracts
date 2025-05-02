@@ -112,6 +112,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         currentRoundId++;
     }
 
+    function setRedemptionRoundActive(uint256 roundId, bool flag) external onlyFactory {
+        redemptionRoundActive[roundId] = flag;
+    }
+
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
         if (!roundIdIsActive[currentRoundId]) {
             roundIdIsActive[currentRoundId] = true;
@@ -143,6 +147,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function addressesInRound(uint256 roundId) external view returns (address[] memory) {
         return roundIdToAddresses[roundId];
+    }
+
+    function getRedemptionRoundActive(uint256 roundId) external view returns (bool) {
+        return redemptionRoundActive[roundId];
     }
 
     function setIssuanceRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
