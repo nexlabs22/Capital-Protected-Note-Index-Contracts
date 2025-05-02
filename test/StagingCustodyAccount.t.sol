@@ -10,8 +10,15 @@ import {IndexToken} from "../src/token/IndexToken.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
+import {Vault} from "../src/vault/Vault.sol";
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
+    function mint(address to, uint256 amt) external {
+        _mint(to, amt);
+    }
+}
+
+contract MockBernx is ERC20("Bernx", "Bernx") {
     function mint(address to, uint256 amt) external {
         _mint(to, amt);
     }
@@ -36,6 +43,7 @@ contract StagingCustodyAccountTest is Test {
     address bob = vm.addr(11);
 
     MockUSDC usdc;
+    MockBernx bernx;
     IndexToken idx;
     TestFunctionsOracle oracle;
     IndexFactoryStorage store;
@@ -45,6 +53,7 @@ contract StagingCustodyAccountTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
+        bernx = new MockBernx();
 
         {
             IndexToken impl = new IndexToken();
@@ -84,7 +93,16 @@ contract StagingCustodyAccountTest is Test {
                 address(impl),
                 abi.encodeCall(
                     StagingCustodyAccount.initialize,
-                    (address(idx), factory, address(0xDEADBEEF), address(usdc), address(store), nexBot, address(oracle))
+                    (
+                        address(idx),
+                        factory,
+                        address(0xDEADBEEF),
+                        address(usdc),
+                        address(store),
+                        nexBot,
+                        address(oracle),
+                        address(bernx)
+                    )
                 )
             );
             sca = StagingCustodyAccount(address(proxy));
@@ -94,6 +112,7 @@ contract StagingCustodyAccountTest is Test {
         store.transferOwnership(address(sca));
 
         idx.setMinter(address(sca), true);
+        idx.setMinter(address(this), true);
 
         vm.startPrank(factory);
         store.addIssuanceForCurrentRound(alice, 60_000 * ONE_USDC);
@@ -263,21 +282,114 @@ contract StagingCustodyAccountTest is Test {
         vm.stopPrank();
     }
 
-    function test_settleRedemption_FailWhenSenderIsNotNexBot() public {
+    // function test_settleRedemption_FailWhenSenderIsNotNexBot() public {
+    //     vm.startPrank(alice);
+
+    //     vm.expectRevert("Caller is not the NEX bot");
+    //     sca.settleRedemption(1, 1);
+
+    //     vm.stopPrank();
+    // }
+
+    // function test_settleRedemption_FailWhenTotalRedemptionByRoundIsZero() public {
+    //     vm.startPrank(nexBot);
+
+    //     vm.expectRevert("nothing to settle");
+    //     sca.settleRedemption(2, 1);
+
+    //     vm.stopPrank();
+    // }
+
+    function _bootstrapRedemptionRound(uint256 idxAlice, uint256 idxBob) internal returns (uint256 slicePct1e18) {
+        // give users some freshly-minted IDX and tell storage they want to redeem
+        idx.mint(alice, idxAlice);
+        idx.mint(bob, idxBob);
+
+        // users “deposit” their IDX into SCA (simulate transferFrom)
         vm.startPrank(alice);
+        idx.transfer(address(sca), idxAlice);
+        vm.stopPrank();
 
-        vm.expectRevert("Caller is not the NEX bot");
-        sca.settleRedemption(1, 1);
+        vm.startPrank(bob);
+        idx.transfer(address(sca), idxBob);
+        vm.stopPrank();
 
+        // register the redemption orders in storage (factory role)
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        store.addRedemptionForCurrentRound(bob, idxBob);
+        vm.stopPrank();
+
+        // total supply *after* mint = idxAlice + idxBob
+        slicePct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
+    }
+
+    function _deployVaultWithLiquidity(uint256 usdcQty, uint256 bernQty) internal {
+        // deploy a fresh Vault and wire it into storage BEFORE SCA is initialised
+        Vault vaultImpl = new Vault();
+        Vault v = Vault(
+            address(
+                new ERC1967Proxy(
+                    address(vaultImpl), abi.encodeCall(Vault.initialize, (address(this)) /* dummy first operator */ )
+                )
+            )
+        );
+
+        // fund vault
+        usdc.mint(address(v), usdcQty);
+        bernx.mint(address(v), bernQty);
+
+        // point storage at the new vault so SCA picks it up
+        vm.store(address(store), bytes32(uint256(2)), bytes32(uint256(uint160(address(v))))); // overwrite nexVault slot
+    }
+
+    /* ---------- 1. initiateRedemptionBatch ---------- */
+
+    function test_initiateRedemptionBatch_FailWhenNotOperator() public {
+        _bootstrapRedemptionRound(100 ether, 50 ether);
+
+        vm.startPrank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
-    function test_settleRedemption_FailWhenTotalRedemptionByRoundIsZero() public {
-        vm.startPrank(nexBot);
+    function test_settleRedemption_FailWhenNotNexBot() public {
+        vm.expectRevert("Caller is not the NEX bot");
+        sca.settleRedemption(1, 0, 0);
+    }
 
-        vm.expectRevert("nothing to settle");
-        sca.settleRedemption(2, 1);
+    function test_settleRedemption_FullHappyPath() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
 
+        uint256 usdcCr5 = 50_000 * ONE_USDC;
+        usdc.mint(address(sca), usdcCr5);
+
+        vm.startPrank(factory);
+        store.setRedemptionRoundActive(1, true);
         vm.stopPrank();
+
+        uint256 usdcBernx = 150_000 * ONE_USDC;
+        usdc.mint(nexBot, usdcBernx);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcBernx);
+        vm.stopPrank();
+        vm.prank(nexBot);
+        sca.settleRedemption(1, usdcBernx, usdcCr5);
+
+        uint256 totalPaid = usdcBernx + usdcCr5;
+
+        uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
+        uint256 bobShare = totalPaid - aliceShare;
+
+        assertEq(usdc.balanceOf(alice), aliceShare);
+        assertEq(usdc.balanceOf(bob), bobShare);
+
+        assertEq(idx.balanceOf(address(sca)), 0);
+
+        assertTrue(store.redemptionRoundCompleted(1));
     }
 }

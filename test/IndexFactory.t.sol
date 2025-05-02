@@ -17,6 +17,12 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
     }
 }
 
+contract MockBernx is ERC20("Bernx", "Bernx") {
+    function mint(address to, uint256 amt) external {
+        _mint(to, amt);
+    }
+}
+
 contract DummyReceiver {}
 
 contract DummyOracle {
@@ -24,71 +30,80 @@ contract DummyOracle {
 }
 
 contract IndexFactoryTest is Test {
-    address alice = vm.addr(1);
+    address owner = address(this);
+    address feeRec = vm.addr(1);
+    address nexBot = vm.addr(2);
+    address oracle = vm.addr(3);
+    address alice = vm.addr(4);
     address bob = vm.addr(5);
-    address feeRecv = vm.addr(2);
-    address nexBot = vm.addr(3);
-    address oracle = vm.addr(4);
 
     MockUSDC usdc;
+    MockBernx bernx;
     IndexToken idx;
     IndexFactoryStorage store;
-    IndexFactory factory;
-    // DummyReceiver sca;
     StagingCustodyAccount sca;
+    IndexFactory factory;
 
     uint256 constant ONE_USDC = 1e6;
 
     function setUp() public {
         usdc = new MockUSDC();
-        // sca = new DummyReceiver();
+        bernx = new MockBernx();
 
         {
             IndexToken impl = new IndexToken();
-            ERC1967Proxy p = new ERC1967Proxy(
+            ERC1967Proxy proxy = new ERC1967Proxy(
                 address(impl),
-                abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, feeRecv, 10_000_000 ether))
+                abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, feeRec, 10_000_000 ether))
             );
-            idx = IndexToken(address(p));
+            idx = IndexToken(address(proxy));
         }
 
-        address oracleAddr = address(new DummyOracle());
-
-        IndexFactoryStorage storeImpl = new IndexFactoryStorage();
-        ERC1967Proxy storeProxy = new ERC1967Proxy(address(storeImpl), bytes(""));
-        store = IndexFactoryStorage(address(storeProxy));
-
-        IndexFactory factoryImpl = new IndexFactory();
-        ERC1967Proxy factoryProxy = new ERC1967Proxy(address(factoryImpl), bytes(""));
-        factory = IndexFactory(address(factoryProxy));
-
-        store.initialize(address(factory), oracleAddr, address(0), false, address(0));
-        vm.prank(address(this));
-        store.setFeeReceiver(feeRecv);
+        {
+            IndexFactoryStorage impl = new IndexFactoryStorage();
+            ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
+            store = IndexFactoryStorage(address(proxy));
+        }
 
         {
             StagingCustodyAccount impl = new StagingCustodyAccount();
-            ERC1967Proxy proxy = new ERC1967Proxy(
-                address(impl),
-                abi.encodeCall(
-                    StagingCustodyAccount.initialize,
-                    (
-                        address(idx),
-                        address(factory),
-                        address(0xDEADBEEF),
-                        address(usdc),
-                        address(store),
-                        nexBot,
-                        address(oracle)
-                    )
-                )
-            );
-            sca = StagingCustodyAccount(address(proxy));
+            ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
+            sca = StagingCustodyAccount(payable(address(proxy)));
         }
-        factory.initialize(address(idx), address(sca), oracleAddr, address(usdc), address(store));
 
+        {
+            IndexFactory impl = new IndexFactory();
+            ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
+            factory = IndexFactory(address(proxy));
+        }
+
+        DummyOracle OR = new DummyOracle();
+
+        store.initialize(address(factory), address(OR), address(0xdead), false, nexBot);
+        store.setFeeReceiver(feeRec);
+
+        sca.initialize(
+            address(idx),
+            address(factory),
+            address(0xbeef),
+            address(usdc),
+            address(store),
+            nexBot,
+            address(OR),
+            address(bernx)
+        );
+
+        // sca = StagingCustodyAccount(payable(address(proxy)));
+
+        factory.initialize(address(idx), address(sca), address(OR), address(usdc), address(store));
+
+        idx.setMinter(address(this), true);
         usdc.mint(alice, 1_000_000 * ONE_USDC);
+        usdc.mint(bob, 1_000_000 * ONE_USDC);
+
         vm.prank(alice);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.prank(bob);
         usdc.approve(address(factory), type(uint256).max);
     }
 
@@ -124,7 +139,7 @@ contract IndexFactoryTest is Test {
         assertEq(nonce, 1);
         assertEq(factory.issuanceNonce(), 1);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
-        assertEq(usdc.balanceOf(feeRecv), fee);
+        assertEq(usdc.balanceOf(feeRec), fee);
     }
 
     function testIssuanceZeroRevert() public {
@@ -175,5 +190,101 @@ contract IndexFactoryTest is Test {
         vm.expectRevert("Invalid amount");
         factory.redemption(0);
         vm.stopPrank();
+    }
+
+    function test_increaseRoundId_requiresOwnerOrOperator() public {
+        vm.prank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        factory.increaseCurrentRoundId();
+    }
+
+    function testIssuance_HappyPath() public {
+        uint256 amount = 10_000 * ONE_USDC;
+        uint256 fee = amount * store.feeRate() / 10_000;
+
+        vm.prank(alice);
+        vm.expectEmit(true, true, true, true);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
+        factory.issuanceIndexToken(amount);
+
+        assertEq(factory.issuanceNonce(), 1);
+        assertEq(usdc.balanceOf(address(sca)), amount);
+        assertEq(usdc.balanceOf(feeRec), fee);
+        assertEq(store.issuanceInputAmount(1), amount);
+    }
+
+    function testIssuance_zeroReverts() public {
+        vm.expectRevert("Invalid input amount");
+        factory.issuanceIndexToken(0);
+    }
+
+    // function testCancelIssuance_HappyPath() public {
+    //     uint256 amt = 5_000 * ONE_USDC;
+    //     vm.prank(alice);
+    //     uint256 n = factory.issuanceIndexToken(amt);
+
+    //     uint256 balBefore = usdc.balanceOf(alice);
+    //     vm.prank(alice);
+    //     factory.cancelIssuance(n);
+    //     uint256 balAfter = usdc.balanceOf(alice);
+
+    //     assertEq(balAfter - balBefore, amt, "refund missing");
+    //     assertTrue(store.issuanceIsCompleted(n));
+    // }
+
+    function _mintAndApproveIdx(address user, uint256 qty) internal {
+        idx.mint(user, qty);
+        vm.prank(user);
+        idx.approve(address(factory), qty);
+    }
+
+    function testRedemption_HappyPath() public {
+        uint256 aliceIdx = 80 ether;
+        uint256 bobIdx = 20 ether;
+
+        _mintAndApproveIdx(alice, aliceIdx);
+        _mintAndApproveIdx(bob, bobIdx);
+
+        vm.prank(alice);
+        uint256 n1 = factory.redemption(aliceIdx);
+
+        vm.prank(bob);
+        uint256 n2 = factory.redemption(bobIdx);
+
+        assertEq(n2, 2);
+        assertEq(factory.redemptionNonce(), 2);
+
+        assertEq(idx.balanceOf(address(sca)), aliceIdx + bobIdx);
+
+        assertEq(store.totalRedemptionByRound(1), aliceIdx + bobIdx);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), aliceIdx);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), bobIdx);
+    }
+
+    function testRedemption_revertsOnZero() public {
+        vm.prank(alice);
+        vm.expectRevert("Invalid amount");
+        factory.redemption(0);
+    }
+
+    function testCancelIssuance_failsIfCompleted() public {
+        vm.prank(alice);
+        uint256 n = factory.issuanceIndexToken(1_000 * ONE_USDC);
+
+        vm.prank(address(this));
+        store.settleIssuance(1);
+
+        vm.prank(alice);
+        vm.expectRevert("Issuance is completed");
+        factory.cancelIssuance(n);
+    }
+
+    function testCancelIssuance_nonRequesterReverts() public {
+        vm.prank(alice);
+        uint256 n = factory.issuanceIndexToken(1_000 * ONE_USDC);
+
+        vm.prank(bob);
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelIssuance(n);
     }
 }

@@ -357,4 +357,59 @@ contract IndexFactoryStorageTest is Test {
         assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
         assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
     }
+
+    function test_setRedemptionRoundActive_FailWhenSenderNotFactory() public {
+        vm.expectRevert("Caller is not a factory contract");
+        store.setRedemptionRoundActive(1, true);
+    }
+
+    function test_setRedemptionRoundActive_Success() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 1 ether);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        bool active = store.getRedemptionRoundActive(1);
+        assertTrue(active);
+    }
+
+    function test_addressesInRedemptionRound_ReturnsUniqueList() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 50);
+        store.addRedemptionForCurrentRound(alice, 25);
+        store.addRedemptionForCurrentRound(bob, 10);
+        vm.stopPrank();
+
+        address[] memory list = store.addressesInRedemptionRound(1);
+        assertEq(list.length, 2);
+        assertEq(list[0], alice);
+        assertEq(list[1], bob);
+    }
+
+    function test_RedemptionStateIsolatedAcrossRounds() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        store.settleRedemption(1);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(bob, 200);
+        vm.stopPrank();
+
+        assertEq(store.totalRedemptionByRound(1), 0);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+        assertEq(store.redemptionRoundId(), 2);
+        assertEq(store.totalRedemptionByRound(2), 200);
+        assertEq(store.redemptionAmountByRoundUser(2, bob), 200);
+    }
+
+    function test_increaseCurrentRoundId_Success() public {
+        vm.prank(factory);
+        store.increaseCurrentRoundId();
+        assertEq(store.currentRoundId(), 2);
+    }
 }
