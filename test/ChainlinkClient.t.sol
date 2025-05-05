@@ -118,6 +118,14 @@ contract ChainlinkClientTest is Test, ChainlinkClient {
         assertEq(getPendingRequest(requestId), address(0));
     }
 
+    function testFailSendChainlinkRequestInvalidPayment() public {
+        bytes32 specId = "specId";
+        Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
+
+        vm.expectRevert("unable to transferAndCall to oracle");
+        sendChainlinkRequest(req, 0);
+    }
+
     function testUnauthorizedFulfillment() public {
         bytes32 requestId = sendChainlinkRequest(
             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
