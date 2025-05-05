@@ -10,6 +10,7 @@ import {IndexToken} from "../src/token/IndexToken.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {IndexFactory} from "../src/factory/IndexFactory.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
+import {Vault} from "../src/vault/Vault.sol";
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -43,12 +44,19 @@ contract IndexFactoryTest is Test {
     IndexFactoryStorage store;
     StagingCustodyAccount sca;
     IndexFactory factory;
+    Vault vault;
 
     uint256 constant ONE_USDC = 1e6;
 
     function setUp() public {
         usdc = new MockUSDC();
         bernx = new MockBernx();
+
+        {
+            Vault impl = new Vault();
+            ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeCall(Vault.initialize, (address(this))));
+            vault = Vault(address(proxy));
+        }
 
         {
             IndexToken impl = new IndexToken();
@@ -79,23 +87,29 @@ contract IndexFactoryTest is Test {
 
         DummyOracle OR = new DummyOracle();
 
-        store.initialize(address(factory), address(OR), address(0xdead), false, nexBot);
-        store.setFeeReceiver(feeRec);
-
-        sca.initialize(
+        store.initialize(
             address(idx),
             address(factory),
-            address(0xbeef),
-            address(usdc),
-            address(store),
-            nexBot,
             address(OR),
-            address(bernx)
+            address(sca),
+            address(vault),
+            nexBot,
+            address(0),
+            address(usdc),
+            false
         );
+        store.setFeeReceiver(feeRec);
+
+        sca.initialize(address(store));
+
+        vault.setOperator(address(sca), true);
+
+        // Hand ownership of SCA over to Factory so calls from Factory pass onlyOwner
+        sca.transferOwnership(address(factory));
 
         // sca = StagingCustodyAccount(payable(address(proxy)));
 
-        factory.initialize(address(idx), address(sca), address(OR), address(usdc), address(store));
+        factory.initialize(address(store));
 
         idx.setMinter(address(this), true);
         usdc.mint(alice, 1_000_000 * ONE_USDC);

@@ -78,35 +78,32 @@ contract StagingCustodyAccountTest is Test {
             oracle.seed(tkns, shrs);
         }
 
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        sca = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+
         {
             IndexFactoryStorage impl = new IndexFactoryStorage();
             ERC1967Proxy proxy = new ERC1967Proxy(
                 address(impl),
-                abi.encodeCall(IndexFactoryStorage.initialize, (factory, address(oracle), vault, false, nexBot))
+                abi.encodeCall(
+                    IndexFactoryStorage.initialize,
+                    (
+                        address(idx),
+                        factory,
+                        address(oracle),
+                        address(sca),
+                        vault,
+                        nexBot,
+                        address(0xDEAD),
+                        address(usdc),
+                        false
+                    )
+                )
             );
             store = IndexFactoryStorage(address(proxy));
         }
 
-        {
-            StagingCustodyAccount impl = new StagingCustodyAccount();
-            ERC1967Proxy proxy = new ERC1967Proxy(
-                address(impl),
-                abi.encodeCall(
-                    StagingCustodyAccount.initialize,
-                    (
-                        address(idx),
-                        factory,
-                        address(0xDEADBEEF),
-                        address(usdc),
-                        address(store),
-                        nexBot,
-                        address(oracle),
-                        address(bernx)
-                    )
-                )
-            );
-            sca = StagingCustodyAccount(address(proxy));
-        }
+        sca.initialize(address(store));
 
         vm.prank(address(this));
         store.transferOwnership(address(sca));
