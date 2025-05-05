@@ -58,6 +58,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factory = factoryStorage.indexFactory();
         usdc = factoryStorage.usdc();
 
+        nexBot = factoryStorage.nexBot();
+        crypto5FactoryAddress = factoryStorage.crypto5FactoryAddress();
+        bernx = factoryStorage.bernx();
+
         // usdc = IERC20(_usdc);
     }
 

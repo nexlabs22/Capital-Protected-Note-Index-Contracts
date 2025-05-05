@@ -102,6 +102,12 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         _disableInitializers();
     }
 
+    function setSCA(address _sca) external onlyOwner {
+        require(address(sca) == address(0), "SCA already set");
+        require(_sca != address(0), "zero");
+        sca = StagingCustodyAccount(_sca);
+    }
+
     function setFeeReceiver(address _feeReceiver) public onlyOwner {
         require(_feeReceiver != address(0), "invalid fee receiver address");
         feeReceiver = _feeReceiver;
