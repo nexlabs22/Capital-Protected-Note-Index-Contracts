@@ -3,22 +3,32 @@ pragma solidity 0.8.25;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IndexFactory} from "../factory/IndexFactory.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
+import {IndexToken} from "../token/IndexToken.sol";
+import {Vault} from "../vault/Vault.sol";
+import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
+
+error InvalidAddress();
 
 contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
-    IndexFactory indexFactory;
+    IndexToken public indexToken;
+    Vault public vault;
+    IndexFactory public indexFactory;
     FunctionsOracle public functionsOracle;
+    StagingCustodyAccount public sca;
+    IERC20 public usdc;
 
+    address public bernx;
+    address public crypto5FactoryAddress;
     address public feeReceiver;
-    address public nexVault;
     uint256 public feeRate;
     uint256 public currentRoundId;
     uint256 public redemptionRoundId;
-
+    address public nexBot;
     bool public isMainnet;
-    address nexBot;
 
     mapping(uint256 => bool) public issuanceIsCompleted;
     mapping(uint256 => address) public issuanceRequesterByNonce;
@@ -35,7 +45,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => bool) public redemptionRoundCompleted;
     mapping(uint256 => address[]) public redemptionAddrs;
 
-    event RoundSettled(uint256 indexed roundId);
+    event IssuanceSettled(uint256 indexed roundId);
+    event RedemptionSettled(uint256 indexed roundId);
 
     modifier onlyFactory() {
         require(msg.sender == address(indexFactory) || msg.sender == nexBot, "Caller is not a factory contract");
@@ -51,23 +62,35 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function initialize(
+        address _indexToken,
         address _indexFactory,
         address _functionsOracle,
-        address _nexVault,
-        bool _isMainnet,
-        address _nexBot
+        address _stagingCustodyAccount,
+        address _vault,
+        address _nexBot,
+        address _crypto5FactoryAddress,
+        address _usdc,
+        bool _isMainnet
     ) external initializer {
-        require(_indexFactory != address(0), "invalid index factory address");
-        require(_functionsOracle != address(0), "invalid functions oracle address");
+        require(_indexToken != address(0), "Invalid IndexToken address");
+        require(_indexFactory != address(0), "Invalid IndexFactory address");
+        require(_functionsOracle != address(0), "Invalid FunctionsOracle address");
+        require(_stagingCustodyAccount != address(0), "Invalid StagingCustodyAccount address");
+        require(_vault != address(0), "Invalid Vault address");
+        require(_nexBot != address(0), "Invalid NexBot address");
 
         __Ownable_init(msg.sender);
 
+        indexToken = IndexToken(_indexToken);
         indexFactory = IndexFactory(_indexFactory);
         functionsOracle = FunctionsOracle(_functionsOracle);
-        nexVault = _nexVault;
-        isMainnet = _isMainnet;
-        nexBot = _nexBot;
+        sca = StagingCustodyAccount(_stagingCustodyAccount);
+        vault = Vault(_vault);
+        usdc = IERC20(_usdc);
 
+        crypto5FactoryAddress = _crypto5FactoryAddress;
+        nexBot = _nexBot;
+        isMainnet = _isMainnet;
         currentRoundId = 1;
         redemptionRoundId = 1;
         feeRate = 10;
@@ -206,7 +229,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         issuanceIsCompleted[roundId] = true;
         roundIdIsActive[roundId] = false;
 
-        emit RoundSettled(roundId);
+        emit IssuanceSettled(roundId);
     }
 
     function settleRedemption(uint256 roundId) external onlyOwnerOrOperator {
@@ -219,7 +242,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         redemptionRoundCompleted[roundId] = true;
         redemptionRoundActive[roundId] = false;
-        emit RoundSettled(roundId);
+        emit RedemptionSettled(roundId);
 
         ++redemptionRoundId;
     }

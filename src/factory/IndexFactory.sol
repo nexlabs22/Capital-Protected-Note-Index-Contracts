@@ -16,12 +16,11 @@ import {IndexToken} from "../token/IndexToken.sol";
 contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
-    IndexToken indexToken;
-    StagingCustodyAccount stagingCustodyAccount;
-    IndexFactoryStorage indexFactoryStorage;
-    FunctionsOracle public functionsOracle;
-    IERC20 usdc;
+    IndexFactoryStorage factoryStorage;
+    StagingCustodyAccount sca;
 
+    address public indexToken;
+    address public usdc;
     uint256 public issuanceNonce;
     uint256 public redemptionNonce;
 
@@ -53,23 +52,18 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     );
 
     modifier onlyOwnerOrOperator() {
-        require(msg.sender == owner() || functionsOracle.isOperator(msg.sender), "Caller is not the owner or operator");
+        require(
+            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender),
+            "Caller is not the owner or operator"
+        );
         _;
     }
 
-    function initialize(
-        address _indexToken,
-        address _stagingCustodyAccount,
-        address _functionsOracle,
-        address _usdc,
-        address _indexFactoryStorage
-    ) external initializer {
-        indexToken = IndexToken(_indexToken);
-        functionsOracle = FunctionsOracle(_functionsOracle);
-        stagingCustodyAccount = StagingCustodyAccount(_stagingCustodyAccount);
-        indexFactoryStorage = IndexFactoryStorage(_indexFactoryStorage);
-
-        usdc = IERC20(_usdc);
+    function initialize(address _indexFactoryStorage) external initializer {
+        factoryStorage = IndexFactoryStorage(_indexFactoryStorage);
+        indexToken = address(factoryStorage.indexToken());
+        sca = factoryStorage.sca();
+        usdc = address(factoryStorage.usdc());
 
         __Ownable_init(msg.sender);
         __Pausable_init();
@@ -83,48 +77,48 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
         require(_inputAmount > 0, "Invalid input amount");
-        uint256 feeAmount = (_inputAmount * indexFactoryStorage.feeRate()) / 10000;
-        IERC20(usdc).safeTransferFrom(msg.sender, address(stagingCustodyAccount), _inputAmount); // should change to quantityIn
-        IERC20(usdc).safeTransferFrom(msg.sender, indexFactoryStorage.feeReceiver(), feeAmount);
+        uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
+        IERC20(usdc).safeTransferFrom(msg.sender, address(sca), _inputAmount); // should change to quantityIn
+        IERC20(usdc).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
 
         issuanceNonce++;
-        indexFactoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
-        indexFactoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
+        factoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
+        factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
 
-        indexFactoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
+        factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
         emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
         return issuanceNonce;
     }
 
     function cancelIssuance(uint256 nonce) external nonReentrant {
-        require(!indexFactoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
-        address requester = indexFactoryStorage.issuanceRequesterByNonce(nonce);
+        require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
+        address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
 
-        uint256 amt = indexFactoryStorage.issuanceInputAmount(nonce);
+        uint256 amt = factoryStorage.issuanceInputAmount(nonce);
         require(amt > 0, "nothing to refund");
 
-        stagingCustodyAccount.refund(requester, amt);
-        indexFactoryStorage.undoIssuance(requester, amt);
-        indexFactoryStorage.setIssuanceCompleted(nonce, true);
+        sca.refund(requester, amt);
+        factoryStorage.undoIssuance(requester, amt);
+        factoryStorage.setIssuanceCompleted(nonce, true);
 
         emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
     }
 
     function redemption(uint256 amount) external returns (uint256 nonce) {
         require(amount > 0, "Invalid amount");
-        indexToken.transferFrom(msg.sender, address(stagingCustodyAccount), amount);
+        factoryStorage.indexToken().transferFrom(msg.sender, address(sca), amount);
 
         nonce = ++redemptionNonce;
 
-        indexFactoryStorage.setRedemptionInputAmount(nonce, amount);
-        indexFactoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
-        indexFactoryStorage.addRedemptionForCurrentRound(msg.sender, amount);
+        factoryStorage.setRedemptionInputAmount(nonce, amount);
+        factoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
+        factoryStorage.addRedemptionForCurrentRound(msg.sender, amount);
         emit RequestRedemption(nonce, msg.sender, address(usdc), amount, 0, block.timestamp);
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {
-        indexFactoryStorage.increaseCurrentRoundId();
+        factoryStorage.increaseCurrentRoundId();
     }
 }
