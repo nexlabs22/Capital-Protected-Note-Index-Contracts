@@ -28,12 +28,7 @@ contract DeployStagingCustodyAccount is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         address proxy = Upgrades.deployTransparentProxy(
-            "StagingCustodyAccount.sol",
-            owner,
-            abi.encodeCall(
-                StagingCustodyAccount.initialize,
-                (address(0), address(0), address(0), address(0), address(0), address(0), address(0), address(0))
-            )
+            "StagingCustodyAccount.sol", owner, abi.encodeCall(StagingCustodyAccount.initialize, (address(0)))
         );
 
         StagingCustodyAccount stagingCustodyAccountImplementation = StagingCustodyAccount(proxy);

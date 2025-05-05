@@ -21,7 +21,10 @@ contract DeployIndexFactoryStorage is Script {
         address proxy = Upgrades.deployTransparentProxy(
             "IndexFactoryStorage.sol",
             owner,
-            abi.encodeCall(IndexFactoryStorage.initialize, (address(0), address(0), address(0), false, address(0)))
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (address(0), address(0), address(0), address(0), address(0), address(0), address(0), address(0), false)
+            )
         );
 
         IndexFactoryStorage indexFactoryStorageImplementation = IndexFactoryStorage(proxy);
