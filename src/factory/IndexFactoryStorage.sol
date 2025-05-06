@@ -13,6 +13,7 @@ import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 
 error InvalidAddress();
 error ZeroAmount();
+error UnsettledRound(uint256 previousRoundId);
 
 contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     IndexToken public indexToken;
@@ -275,6 +276,16 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
             }
         }
         if (arr.length == 0) roundIdIsActive[round] = false;
+    }
+
+    function nextProcessableRoundId() external view returns (uint256) {
+        uint256 id = currentRoundId;
+        for (uint256 i = 1; i < id; ++i) {
+            if (roundIdIsActive[i]) {
+                revert UnsettledRound(i);
+            }
+        }
+        return id;
     }
 
     uint256[45] private __gap;
