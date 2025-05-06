@@ -13,6 +13,8 @@ import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 
+error ZeroAmount();
+
 contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -76,7 +78,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
-        require(_inputAmount > 0, "Invalid input amount");
+        if (_inputAmount == 0) revert ZeroAmount();
+        // require(_inputAmount > 0, "Invalid input amount");
         uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
         IERC20(usdc).safeTransferFrom(msg.sender, address(sca), _inputAmount); // should change to quantityIn
         IERC20(usdc).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
@@ -107,7 +110,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function redemption(uint256 amount) external returns (uint256 nonce) {
-        require(amount > 0, "Invalid amount");
+        if (amount == 0) revert ZeroAmount();
+        // require(amount > 0, "Invalid amount");
         factoryStorage.indexToken().transferFrom(msg.sender, address(sca), amount);
 
         nonce = ++redemptionNonce;

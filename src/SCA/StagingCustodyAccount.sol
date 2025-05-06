@@ -15,6 +15,8 @@ import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {Vault} from "../vault/Vault.sol";
 
+error ZeroAmount();
+
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -34,6 +36,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     event TokensDistributed(
         uint256 indexed roundId, uint256 indexed indexTokenAmount, uint256 indexed usdcAmount, uint256 timestamp
     );
+    event Refunded(address indexed to, uint256 indexed amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
@@ -88,7 +91,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function withdrawForPurchase(uint256 roundId, uint256 amount) public onlyOwnerOrOperator nonReentrant {
         require(factoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
-        require(amount > 0, "zero amount");
+        if (amount <= 0) revert ZeroAmount();
+        // require(amount > 0, "zero amount");
 
         IERC20(usdc).safeTransfer(nexBot, amount);
         emit WithdrawnForPurchase(roundId, amount, block.timestamp);
@@ -102,6 +106,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     function refund(address to, uint256 amount) external onlyOwnerOrOperator {
         require(to != address(0) && amount > 0, "bad refund");
         usdc.safeTransfer(to, amount);
+        emit Refunded(to, amount, block.timestamp);
     }
 
     function issuanceCrypto5(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
