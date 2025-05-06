@@ -9,6 +9,9 @@ import {IndexToken} from "../src/token/IndexToken.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 
+error ZeroAmount();
+error InvalidAddress();
+
 contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
@@ -118,7 +121,7 @@ contract IndexFactoryStorageTest is Test {
         store.setIssuanceInputAmount(1, 100);
 
         vm.prank(factory);
-        vm.expectRevert("Invalid issuance input amount");
+        vm.expectRevert(ZeroAmount.selector);
         store.setIssuanceInputAmount(1, 0);
 
         vm.prank(factory);
@@ -128,7 +131,7 @@ contract IndexFactoryStorageTest is Test {
 
     function testSetRedemptionInputAmount() public {
         vm.prank(factory);
-        vm.expectRevert("Invalid redemption input amount");
+        vm.expectRevert(ZeroAmount.selector);
         store.setRedemptionInputAmount(1, 0);
 
         vm.prank(factory);
@@ -138,7 +141,7 @@ contract IndexFactoryStorageTest is Test {
 
     function testSetBurnedTokenAmount() public {
         vm.prank(factory);
-        vm.expectRevert("Invalid burn amount");
+        vm.expectRevert(ZeroAmount.selector);
         store.setBurnedTokenAmountByNonce(1, 0);
 
         vm.prank(factory);
@@ -210,7 +213,7 @@ contract IndexFactoryStorageTest is Test {
 
     function testSetFeeReceiverFailWhenFeeReceiverIsInvalid() public {
         vm.startPrank(owner);
-        vm.expectRevert("invalid fee receiver address");
+        vm.expectRevert(InvalidAddress.selector);
         store.setFeeReceiver(address(0));
         vm.stopPrank();
     }

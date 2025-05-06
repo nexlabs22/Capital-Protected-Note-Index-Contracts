@@ -12,6 +12,8 @@ import {IndexFactory} from "../src/factory/IndexFactory.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {Vault} from "../src/vault/Vault.sol";
 
+error ZeroAmount();
+
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
         _mint(to, amt);
@@ -157,7 +159,7 @@ contract IndexFactoryTest is Test {
     }
 
     function testIssuanceZeroRevert() public {
-        vm.expectRevert("Invalid input amount");
+        vm.expectRevert(ZeroAmount.selector);
         factory.issuanceIndexToken(0);
     }
 
@@ -201,7 +203,7 @@ contract IndexFactoryTest is Test {
 
     function test_redemption_FailWhenAmountIsInvalid() public {
         vm.startPrank(alice);
-        vm.expectRevert("Invalid amount");
+        vm.expectRevert(ZeroAmount.selector);
         factory.redemption(0);
         vm.stopPrank();
     }
@@ -228,7 +230,7 @@ contract IndexFactoryTest is Test {
     }
 
     function testIssuance_zeroReverts() public {
-        vm.expectRevert("Invalid input amount");
+        vm.expectRevert(ZeroAmount.selector);
         factory.issuanceIndexToken(0);
     }
 
@@ -277,7 +279,7 @@ contract IndexFactoryTest is Test {
 
     function testRedemption_revertsOnZero() public {
         vm.prank(alice);
-        vm.expectRevert("Invalid amount");
+        vm.expectRevert(ZeroAmount.selector);
         factory.redemption(0);
     }
 

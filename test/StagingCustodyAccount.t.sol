@@ -12,6 +12,8 @@ import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {Vault} from "../src/vault/Vault.sol";
 
+error ZeroAmount();
+
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
         _mint(to, amt);
@@ -182,7 +184,7 @@ contract StagingCustodyAccountTest is Test {
     function test_withdrawForPurchase_FailWhenAmountIsZero() public {
         vm.startPrank(nexBot);
 
-        vm.expectRevert("zero amount");
+        vm.expectRevert(ZeroAmount.selector);
         sca.withdrawForPurchase(1, 0);
 
         vm.stopPrank();
