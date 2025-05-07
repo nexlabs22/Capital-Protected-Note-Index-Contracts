@@ -11,6 +11,8 @@ import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {IndexFactory} from "../src/factory/IndexFactory.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {Vault} from "../src/vault/Vault.sol";
+import {LinkToken} from "./helpers/LinkToken.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
 
 error ZeroAmount();
 
@@ -47,6 +49,10 @@ contract IndexFactoryTest is Test {
     StagingCustodyAccount sca;
     IndexFactory factory;
     Vault vault;
+    LinkToken link;
+
+    MockERC20 token0;
+    MockERC20 token1;
 
     uint256 constant ONE_USDC = 1e6;
 
@@ -100,13 +106,15 @@ contract IndexFactoryTest is Test {
             address(usdc),
             false
         );
+
+        link = new LinkToken();
+
         store.setFeeReceiver(feeRec);
 
         sca.initialize(address(store));
 
         vault.setOperator(address(sca), true);
 
-        // Hand ownership of SCA over to Factory so calls from Factory pass onlyOwner
         sca.transferOwnership(address(factory));
 
         // sca = StagingCustodyAccount(payable(address(proxy)));
@@ -302,5 +310,90 @@ contract IndexFactoryTest is Test {
         vm.prank(bob);
         vm.expectRevert("Only requester can cancel");
         factory.cancelIssuance(n);
+    }
+
+    function testIssuance_updatesStorageAndRoundData() public {
+        uint256 amt = 25_000 * ONE_USDC;
+        uint256 fee = amt * store.feeRate() / 10_000;
+
+        vm.prank(alice);
+        uint256 n = factory.issuanceIndexToken(amt);
+
+        assertEq(n, 1);
+        assertEq(factory.issuanceNonce(), 1);
+
+        assertEq(usdc.balanceOf(address(sca)), amt);
+        assertEq(usdc.balanceOf(feeRec), fee);
+
+        assertEq(store.totalIssuanceByRound(1), amt);
+        assertEq(store.issuanceAmountByRoundUser(1, alice), amt);
+        assertEq(store.issuanceInputAmount(n), amt);
+        assertEq(store.issuanceRequesterByNonce(n), alice);
+        assertEq(store.roundIdIsActive(1), true);
+    }
+
+    function testIssuance_feeChargedExactly() public {
+        uint256 amt = 42_000 * ONE_USDC;
+        uint256 fee = amt * store.feeRate() / 10_000;
+
+        uint256 before = usdc.balanceOf(feeRec);
+        vm.prank(alice);
+        factory.issuanceIndexToken(amt);
+        uint256 afterBal = usdc.balanceOf(feeRec);
+
+        assertEq(afterBal - before, fee, "fee mismatch");
+    }
+
+    function testIssuance_emitsCorrectEvent() public {
+        uint256 amt = 5_555 * ONE_USDC;
+
+        vm.prank(alice);
+        vm.expectEmit(true, true, true, true);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amt, 0, block.timestamp);
+        factory.issuanceIndexToken(amt);
+    }
+
+    function testCancelIssuance_HappyPath() public {
+        uint256 amt = 8_000 * ONE_USDC;
+
+        vm.prank(alice);
+        uint256 nonce = factory.issuanceIndexToken(amt);
+
+        uint256 balBefore = usdc.balanceOf(alice);
+
+        vm.prank(alice);
+        factory.cancelIssuance(nonce);
+
+        uint256 balAfter = usdc.balanceOf(alice);
+        assertEq(balAfter - balBefore, amt, "refund missing");
+
+        assertTrue(store.issuanceIsCompleted(nonce));
+        assertEq(store.totalIssuanceByRound(1), 0);
+        assertEq(store.roundIdIsActive(1), false);
+    }
+
+    function updateOracleList() public view {
+        address[] memory assetList = new address[](10);
+        assetList[0] = address(token0);
+        assetList[1] = address(token1);
+
+        uint256[] memory tokenShares = new uint256[](10);
+        tokenShares[0] = 10e18;
+        tokenShares[1] = 10e18;
+        tokenShares[2] = 10e18;
+        tokenShares[3] = 10e18;
+        tokenShares[4] = 10e18;
+        tokenShares[5] = 10e18;
+        tokenShares[6] = 10e18;
+        tokenShares[7] = 10e18;
+        tokenShares[8] = 10e18;
+        tokenShares[9] = 10e18;
+
+        // link.transfer(address(functionsOracle), 1e17);
+        // // bytes32 requestId = factoryStorage.requestAssetsData();
+        // // oracle.fulfillOracleFundingRateRequest(requestId, assetList, tokenShares);
+        // bytes32 requestId = functionsOracle.requestAssetsData("console.log('Hello, World!');", 0, 0);
+        // bytes memory data = abi.encode(assetList, tokenShares);
+        // oracle.fulfillRequest(address(functionsOracle), requestId, data);
     }
 }
