@@ -127,7 +127,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         ICrypto5Factory(crypto5FactoryAddress).redemption(amountIn, _tokenOut, _tokenOutPath, _tokenOutFees);
     }
 
-    function distributeTokens(uint256 mintAmount, uint256 roundId) external onlyNexBot {
+    function distributeTokens( /*uint256 mintAmount,*/ uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
+        external
+        onlyNexBot
+    {
         require(roundId <= factoryStorage.currentRoundId(), "Invalid roundId");
         for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
             address tokenAddress = functionsOracle.currentList(i);
@@ -139,6 +142,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
 
+        uint256 mintAmount = calculateMintAmount(roundId, bernxPrice, crypto5Price);
         indexToken.mint(address(this), mintAmount);
 
         uint256 distributed;
@@ -226,6 +230,38 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 cr5Amount = IERC20(address(indexToken)).balanceOf(address(this));
         if (cr5Amount > 0) {
             redemptionCrypto5(cr5Amount, address(usdc), tokenOutPath, tokenOutFees);
+        }
+    }
+
+    function calculateMintAmount(uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
+        public
+        view
+        returns (uint256 mintAmount)
+    {
+        uint256 totalValue;
+
+        uint256 bernBal = IERC20(bernx).balanceOf(address(vault));
+        if (bernBal > 0) {
+            totalValue += (bernBal * bernxPrice) / 1e18;
+        }
+
+        address idxc5 = functionsOracle.currentList(1);
+        uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
+        if (c5Bal > 0) {
+            totalValue += (c5Bal * crypto5Price) / 1e18;
+        }
+
+        uint256 usdcRaised = factoryStorage.totalIssuanceByRound(roundId);
+        uint256 cashUSD = usdcRaised * 1e12;
+
+        uint256 supply = indexToken.totalSupply();
+
+        if (supply == 0 || totalValue == 0) {
+            mintAmount = cashUSD;
+        } else {
+            //     price = oldValue / oldSupply
+            //  →  Δsupply = cashUSD * oldSupply / oldValue
+            mintAmount = (cashUSD * supply) / totalValue;
         }
     }
 
