@@ -135,8 +135,10 @@ contract StagingCustodyAccountTest is Test {
     }
 
     function testDistributeAndSettle() public {
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
         vm.prank(nexBot);
-        sca.distributeTokens(1_000 ether, 1);
+        sca.distributeTokens(1, bernxPrice, c5Price);
 
         assertEq(idx.balanceOf(alice), 600 ether);
         assertEq(idx.balanceOf(bob), 400 ether);
@@ -222,25 +224,29 @@ contract StagingCustodyAccountTest is Test {
     function test_distributeTokens_FailWhenCallerIsNotNexBot() public {
         vm.startPrank(factory);
 
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
         vm.expectRevert("Caller is not the NEX bot");
-        sca.distributeTokens(1_000 ether, 1);
-
+        sca.distributeTokens(1, bernxPrice, c5Price);
         vm.stopPrank();
     }
 
     function test_distributeTokens_FailWhenRoundIdIsGreaterThanCurrentRoundId() public {
         vm.startPrank(nexBot);
-
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
         vm.expectRevert("Invalid roundId");
-        sca.distributeTokens(1_000 ether, 2);
+        sca.distributeTokens(2, bernxPrice, c5Price);
 
         vm.stopPrank();
     }
 
     function test_distributeTokens_SuccessfulDistributeWhenOwedIsZero() public {
         vm.startPrank(nexBot);
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
 
-        sca.distributeTokens(1, 1);
+        sca.distributeTokens(1, bernxPrice, c5Price);
 
         vm.stopPrank();
 
@@ -300,11 +306,9 @@ contract StagingCustodyAccountTest is Test {
     // }
 
     function _bootstrapRedemptionRound(uint256 idxAlice, uint256 idxBob) internal returns (uint256 slicePct1e18) {
-        // give users some freshly-minted IDX and tell storage they want to redeem
         idx.mint(alice, idxAlice);
         idx.mint(bob, idxBob);
 
-        // users “deposit” their IDX into SCA (simulate transferFrom)
         vm.startPrank(alice);
         idx.transfer(address(sca), idxAlice);
         vm.stopPrank();
@@ -313,36 +317,24 @@ contract StagingCustodyAccountTest is Test {
         idx.transfer(address(sca), idxBob);
         vm.stopPrank();
 
-        // register the redemption orders in storage (factory role)
         vm.startPrank(factory);
         store.addRedemptionForCurrentRound(alice, idxAlice);
         store.addRedemptionForCurrentRound(bob, idxBob);
         vm.stopPrank();
 
-        // total supply *after* mint = idxAlice + idxBob
         slicePct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
     }
 
     function _deployVaultWithLiquidity(uint256 usdcQty, uint256 bernQty) internal {
-        // deploy a fresh Vault and wire it into storage BEFORE SCA is initialised
         Vault vaultImpl = new Vault();
-        Vault v = Vault(
-            address(
-                new ERC1967Proxy(
-                    address(vaultImpl), abi.encodeCall(Vault.initialize, (address(this)) /* dummy first operator */ )
-                )
-            )
-        );
+        Vault v =
+            Vault(address(new ERC1967Proxy(address(vaultImpl), abi.encodeCall(Vault.initialize, (address(this))))));
 
-        // fund vault
         usdc.mint(address(v), usdcQty);
         bernx.mint(address(v), bernQty);
 
-        // point storage at the new vault so SCA picks it up
-        vm.store(address(store), bytes32(uint256(2)), bytes32(uint256(uint160(address(v))))); // overwrite nexVault slot
+        vm.store(address(store), bytes32(uint256(2)), bytes32(uint256(uint160(address(v)))));
     }
-
-    /* ---------- 1. initiateRedemptionBatch ---------- */
 
     function test_initiateRedemptionBatch_FailWhenNotOperator() public {
         _bootstrapRedemptionRound(100 ether, 50 ether);

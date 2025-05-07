@@ -413,8 +413,10 @@ contract IndexFactoryTest is Test {
         bernx.mint(address(sca), bernQty);
 
         uint256 mintQty = 1_000 ether;
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
         vm.prank(nexBot);
-        sca.distributeTokens(mintQty, 1);
+        sca.distributeTokens(1, bernxPrice, c5Price);
 
         assertEq(idx.balanceOf(alice), mintQty);
         assertEq(bernx.balanceOf(address(vault)), bernQty);
@@ -457,8 +459,10 @@ contract IndexFactoryTest is Test {
         bernx.mint(address(sca), 77_000 ether);
 
         uint256 mintQty = 1_000 ether;
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
         vm.prank(nexBot);
-        sca.distributeTokens(mintQty, 1);
+        sca.distributeTokens(1, bernxPrice, c5Price);
 
         assertEq(idx.balanceOf(alice), mintQty * aAmt / totalIn);
         assertEq(idx.balanceOf(bob), mintQty * bAmt / totalIn);
