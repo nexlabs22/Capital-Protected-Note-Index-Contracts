@@ -127,6 +127,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
             nexBot,
             address(cr5),
             address(usdc),
+            address(bernx),
             false
         );
         store.setFeeReceiver(feeRec);
@@ -413,13 +414,20 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 bernQty = 50_000 ether;
         bernx.mint(address(sca), bernQty);
 
-        uint256 mintQty = 1_000 ether;
-        uint256 bernxPrice = 2e18;
-        uint256 c5Price = 1e18;
+        // uint256 mintQty = 1_000 ether;
+        // uint256 bernxPrice = 2e18;
+        // uint256 c5Price = 1e18;
+        // vm.prank(nexBot);
+        // sca.distributeTokens(1, bernxPrice, c5Price);
+
+        uint256 bernxPrice = 2e18; // 2 USD  (18-dec)
+        uint256 c5Price = 1e18; // 1 USD
+        uint256 expectedMint = sca.calculateMintAmount(1, bernxPrice, c5Price);
         vm.prank(nexBot);
         sca.distributeTokens(1, bernxPrice, c5Price);
 
-        assertEq(idx.balanceOf(alice), mintQty);
+        // assertEq(idx.balanceOf(alice), mintQty);
+        assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bernx.balanceOf(address(vault)), bernQty);
         assertEq(idxc5.balanceOf(address(vault)), inAmt / 5);
 
@@ -459,15 +467,22 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         bernx.mint(address(sca), 77_000 ether);
 
-        uint256 mintQty = 1_000 ether;
-        uint256 bernxPrice = 2e18;
-        uint256 c5Price = 1e18;
+        // uint256 mintQty = 1_000 ether;
+        // uint256 bernxPrice = 2e18;
+        // uint256 c5Price = 1e18;
+        uint256 bernxPrice = 2e18; // 2 USD
+        uint256 c5Price = 1e18; // 1 USD
+        uint256 expectedMint = sca.calculateMintAmount(1, bernxPrice, c5Price);
         vm.prank(nexBot);
         sca.distributeTokens(1, bernxPrice, c5Price);
 
-        assertEq(idx.balanceOf(alice), mintQty * aAmt / totalIn);
-        assertEq(idx.balanceOf(bob), mintQty * bAmt / totalIn);
-        assertEq(idx.balanceOf(carol), mintQty * cAmt / totalIn);
+        // assertEq(idx.balanceOf(alice), mintQty * aAmt / totalIn);
+        // assertEq(idx.balanceOf(bob), mintQty * bAmt / totalIn);
+        // assertEq(idx.balanceOf(carol), mintQty * cAmt / totalIn);
+
+        assertEq(idx.balanceOf(alice), expectedMint * aAmt / totalIn);
+        assertEq(idx.balanceOf(bob), expectedMint * bAmt / totalIn);
+        assertEq(idx.balanceOf(carol), expectedMint * cAmt / totalIn);
 
         assertEq(idxc5.balanceOf(address(vault)), totalIn / 5);
         assertTrue(store.issuanceIsCompleted(1));

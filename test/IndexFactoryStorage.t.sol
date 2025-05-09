@@ -31,6 +31,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     address bob = vm.addr(5);
     address newRecv = vm.addr(9);
     address owner = vm.addr(11);
+    address bernx = vm.addr(12);
 
     IndexFactoryStorage store;
     IndexToken idx;
@@ -67,6 +68,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                         nexBot,
                         address(0xDEAD),
                         address(usdc),
+                        bernx,
                         false
                     )
                 )
@@ -190,7 +192,18 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             address(impl),
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
-                (address(1), address(0), address(oracle), address(0), vault, nexBot, address(0), address(0), false)
+                (
+                    address(1),
+                    address(0),
+                    address(oracle),
+                    address(0),
+                    vault,
+                    nexBot,
+                    address(0),
+                    address(0),
+                    bernx,
+                    false
+                )
             )
         );
 
@@ -206,7 +219,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             address(impl),
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
-                (address(1), factory, address(0), address(1), vault, nexBot, address(2), address(3), false)
+                (address(1), factory, address(0), address(1), vault, nexBot, address(2), address(3), bernx, false)
             )
         );
         vm.stopPrank();
@@ -482,6 +495,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     nexBot,
                     address(0xDEAD),
                     address(0xBEEF),
+                    bernx,
                     false
                 )
             )
@@ -507,6 +521,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     nexBot,
                     address(0xDEAD),
                     address(0xBEEF),
+                    bernx,
                     false
                 )
             )
@@ -540,6 +555,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     nexBot,
                     address(0xDEAD),
                     address(usdc),
+                    bernx,
                     false
                 )
             )
@@ -573,6 +589,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0),
                     address(0xDEAD),
                     address(usdc),
+                    bernx,
                     false
                 )
             )

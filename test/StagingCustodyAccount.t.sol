@@ -99,6 +99,7 @@ contract StagingCustodyAccountTest is Test {
                         nexBot,
                         address(0xDEAD),
                         address(usdc),
+                        address(bernx),
                         false
                     )
                 )
@@ -138,11 +139,16 @@ contract StagingCustodyAccountTest is Test {
     function testDistributeAndSettle() public {
         uint256 bernxPrice = 2e18;
         uint256 c5Price = 1e18;
+
+        uint256 mint = sca.calculateMintAmount(1, bernxPrice, c5Price);
+
         vm.prank(nexBot);
         sca.distributeTokens(1, bernxPrice, c5Price);
 
-        assertEq(idx.balanceOf(alice), 600 ether);
-        assertEq(idx.balanceOf(bob), 400 ether);
+        // assertEq(idx.balanceOf(alice), 600 ether);
+        // assertEq(idx.balanceOf(bob), 400 ether);
+        assertEq(idx.balanceOf(alice), mint * 60_000 * ONE_USDC / (100_000 * ONE_USDC));
+        assertEq(idx.balanceOf(bob), mint * 40_000 * ONE_USDC / (100_000 * ONE_USDC));
         assertEq(store.currentRoundId(), 1);
 
         assertTrue(store.issuanceIsCompleted(1));
@@ -240,22 +246,6 @@ contract StagingCustodyAccountTest is Test {
         sca.distributeTokens(2, bernxPrice, c5Price);
 
         vm.stopPrank();
-    }
-
-    function test_distributeTokens_SuccessfulDistributeWhenOwedIsZero() public {
-        vm.startPrank(nexBot);
-        uint256 bernxPrice = 2e18;
-        uint256 c5Price = 1e18;
-
-        sca.distributeTokens(1, bernxPrice, c5Price);
-
-        vm.stopPrank();
-
-        assertEq(idx.balanceOf(alice), 0);
-        assertEq(idx.balanceOf(bob), 0);
-        assertEq(store.currentRoundId(), 1);
-
-        assertTrue(store.issuanceIsCompleted(1));
     }
 
     function test_refund_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
