@@ -72,6 +72,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _nexBot,
         address _crypto5FactoryAddress,
         address _usdc,
+        address _bernx,
         bool _isMainnet
     ) external initializer {
         require(_indexToken != address(0), "Invalid IndexToken address");
@@ -89,6 +90,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         sca = StagingCustodyAccount(_stagingCustodyAccount);
         vault = Vault(_vault);
         usdc = IERC20(_usdc);
+        bernx = _bernx;
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBot;
@@ -226,8 +228,22 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         totalRedemptionByRound[roundId] -= amount;
 
         if (redemptionAmountByRoundUser[roundId][user] == 0) {
-            _pruneAddress(roundId, user);
+            address[] storage arr = redemptionAddrs[roundId];
+            for (uint256 i; i < arr.length; ++i) {
+                if (arr[i] == user) {
+                    arr[i] = arr[arr.length - 1];
+                    arr.pop();
+                    break;
+                }
+            }
+            if (arr.length == 0) {
+                roundIdIsActive[roundId] = false;
+            }
         }
+
+        // if (redemptionAmountByRoundUser[roundId][user] == 0) {
+        //     _pruneAddress(roundId, user);
+        // }
     }
 
     function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
