@@ -2,5 +2,14 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+test = "test"     # must be present but will be ignored
+script = "script"
+
+[profile.coverage]
+exclude = [
+    "test/**",   # ignore every file under test/
+    "script/**", # ignore every file under script/
+]
+
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

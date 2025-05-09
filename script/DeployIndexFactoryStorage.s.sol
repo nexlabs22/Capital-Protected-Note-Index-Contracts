@@ -23,7 +23,18 @@ contract DeployIndexFactoryStorage is Script {
             owner,
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
-                (address(0), address(0), address(0), address(0), address(0), address(0), address(0), address(0), false)
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    false
+                )
             )
         );
 

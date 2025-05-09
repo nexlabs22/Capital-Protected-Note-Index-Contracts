@@ -298,5 +298,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return id;
     }
 
+    function currentRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
+        for (uint256 i = 1; i < currentRoundId; ++i) {
+            if (roundIdIsActive[i]) {
+                return (false, i);
+            }
+        }
+        return (true, currentRoundId);
+    }
+
     uint256[45] private __gap;
 }
