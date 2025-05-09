@@ -11,6 +11,7 @@ import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {Vault} from "../src/vault/Vault.sol";
+import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
 
@@ -382,5 +383,185 @@ contract StagingCustodyAccountTest is Test {
         assertEq(idx.balanceOf(address(sca)), 0);
 
         assertTrue(store.redemptionRoundCompleted(1));
+    }
+
+    function test_issuanceAndWithdrawForPurchase_FailWhenUSDCBalanceIsZero() public {
+        address[] memory _tokenInPath = new address[](0);
+        uint24[] memory _tokenInFees = new uint24[](0);
+
+        uint256 bal = usdc.balanceOf(address(sca));
+        if (bal > 0) {
+            vm.startPrank(address(sca));
+            usdc.transfer(bob, bal);
+            vm.stopPrank();
+        }
+        assertEq(usdc.balanceOf(address(sca)), 0);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("USDC Balance is Zero!");
+        sca.issuanceAndWithdrawForPurchase(1, _tokenInPath, _tokenInFees);
+        vm.stopPrank();
+    }
+
+    function test_redemptionCrypto5_branch_153_True() public {
+        vm.startPrank(nexBot);
+
+        try sca.redemptionCrypto5(1, address(0), new address[](0), new uint24[](0)) {} catch {}
+        vm.stopPrank();
+    }
+
+    function test_distributeTokens_FailWhenTotalIsZero() public {
+        vm.startPrank(nexBot);
+
+        store.undoIssuance(alice, 60_000 * ONE_USDC);
+        store.undoIssuance(bob, 40_000 * ONE_USDC);
+        uint256 bernxPrice = 2e18;
+        uint256 c5Price = 1e18;
+        vm.expectRevert("Nothing to distribute");
+        sca.distributeTokens(1, bernxPrice, c5Price);
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_FailWhenTotalRedemptionByRoundIsZero1() public {
+        uint256 roundId = 2;
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("nothing to settle");
+        sca.settleRedemption(roundId, 1, 1);
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_FailWhenRedemptionRoundNotActive() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        uint256 usdcBernx = 150_000 * ONE_USDC;
+        uint256 usdcCr5 = 50_000 * ONE_USDC;
+        usdc.mint(nexBot, usdcBernx);
+        usdc.mint(address(sca), usdcCr5);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcBernx);
+        vm.expectRevert("batch not started or already settled");
+        sca.settleRedemption(1, usdcBernx, usdcCr5);
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_ElseBranch_usdcFromBernxZero() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(factory);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        uint256 usdcFromBernx = 0;
+        uint256 usdcFromCr5 = 50_000 * ONE_USDC;
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+        vm.stopPrank();
+
+        uint256 totalPaid = usdcFromCr5;
+        uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
+        uint256 bobShare = totalPaid - aliceShare;
+        assertEq(usdc.balanceOf(alice), aliceShare);
+        assertEq(usdc.balanceOf(bob), bobShare);
+        assertEq(idx.balanceOf(address(sca)), 0);
+        assertTrue(store.redemptionRoundCompleted(1));
+    }
+
+    function test_settleRedemption_FailWhenTotalUSDCIsZero() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(factory);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        uint256 usdcFromBernx = 0;
+        uint256 usdcFromCr5 = 0;
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("zero USDC received");
+        sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+        vm.stopPrank();
+    }
+
+    function test_settleRedemption_DustBranch_239_True() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(factory);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        uint256 usdcFromBernx = 0;
+        uint256 usdcFromCr5 = 100_001 * ONE_USDC + 1;
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+        vm.stopPrank();
+
+        uint256 totalPaid = usdcFromCr5;
+        uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
+        uint256 bobShare = totalPaid * idxBob / (idxAlice + idxBob);
+        uint256 distributed = aliceShare + bobShare;
+        uint256 dust = totalPaid - distributed;
+        assertGt(dust, 0);
+        assertEq(usdc.balanceOf(store.feeReceiver()), dust);
+        assertEq(usdc.balanceOf(alice), aliceShare);
+        assertEq(usdc.balanceOf(bob), bobShare);
+        assertEq(idx.balanceOf(address(sca)), 0);
+        assertTrue(store.redemptionRoundCompleted(1));
+    }
+
+    function test_initiateRedemptionBatch_Branch_247_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(nexBot);
+
+        try sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0)) {} catch {}
+        vm.stopPrank();
+    }
+
+    function test_initiateRedemptionBatch_Branch_253_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+        vm.startPrank(factory);
+        store.setRedemptionRoundActive(1, true);
+        vm.stopPrank();
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("batch already started");
+        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_allPreviousRoundsSettled_branch_327_True() public {
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+
+        store.increaseCurrentRoundId();
+
+        store.addIssuanceForCurrentRound(bob, 200);
+        vm.stopPrank();
+
+        assertTrue(store.roundIdIsActive(1));
+        assertEq(store.currentRoundId(), 2);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("A previous round is still unsettled");
+        sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
+        vm.stopPrank();
     }
 }

@@ -7,8 +7,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import "../src/vault/Vault.sol";
 import "./mocks/MockERC20.sol";
+import "./OlympixUnitTest.sol";
 
-contract VaultTest is Test {
+contract VaultTest is OlympixUnitTest("Vault") {
     Vault vault;
     MockERC20 token;
     address operator = address(0x1);
@@ -51,5 +52,35 @@ contract VaultTest is Test {
         uint256 userBalanceAfterWithdraw = IERC20(token).balanceOf(to);
 
         assertGt(userBalanceAfterWithdraw, userBalanceBeforeWithdraw);
+    }
+
+    function test_withdrawFunds_RevertOnZeroTokenAddress() public {
+        vault.setOperator(operator, true);
+        address to = address(0x3);
+        uint256 amount = 1 ether;
+        vm.startPrank(operator);
+        vm.expectRevert("NexVault: invalid token address");
+        vault.withdrawFunds(address(0), to, amount);
+        vm.stopPrank();
+    }
+
+    function test_withdrawFunds_RevertOnZeroToAddress() public {
+        vault.setOperator(operator, true);
+        address to = address(0);
+        uint256 amount = 1 ether;
+        vm.startPrank(operator);
+        vm.expectRevert("NexVault: invalid address");
+        vault.withdrawFunds(address(token), to, amount);
+        vm.stopPrank();
+    }
+
+    function test_withdrawFunds_RevertOnZeroAmount() public {
+        vault.setOperator(operator, true);
+        address to = address(0x3);
+        uint256 amount = 0;
+        vm.startPrank(operator);
+        vm.expectRevert("NexVault: amount must be greater than 0");
+        vault.withdrawFunds(address(token), to, amount);
+        vm.stopPrank();
     }
 }

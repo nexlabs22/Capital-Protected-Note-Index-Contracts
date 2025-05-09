@@ -8,6 +8,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IndexToken} from "../src/token/IndexToken.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
+import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
 error InvalidAddress();
@@ -22,7 +23,7 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
     }
 }
 
-contract IndexFactoryStorageTest is Test {
+contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     address factory = vm.addr(1);
     address vault = vm.addr(2);
     address nexBot = vm.addr(3);
@@ -459,5 +460,202 @@ contract IndexFactoryStorageTest is Test {
         vm.prank(factory);
         store.increaseCurrentRoundId();
         assertEq(store.currentRoundId(), 2);
+    }
+
+    function test_initialize_FailWhenIndexTokenAddressIsInvalid() public {
+        vm.startPrank(owner);
+
+        DummyOracle oracle = new DummyOracle();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+
+        vm.expectRevert("Invalid IndexToken address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(0),
+                    factory,
+                    address(oracle),
+                    address(0x1234),
+                    vault,
+                    nexBot,
+                    address(0xDEAD),
+                    address(0xBEEF),
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenStagingCustodyAccountAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid StagingCustodyAccount address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(0),
+                    vault,
+                    nexBot,
+                    address(0xDEAD),
+                    address(0xBEEF),
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenVaultAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexToken implIdx = new IndexToken();
+        ERC1967Proxy proxyIdx = new ERC1967Proxy(
+            address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
+        );
+        IndexToken idx = IndexToken(address(proxyIdx));
+        StagingCustodyAccount sca =
+            StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
+        MockUSDC usdc = new MockUSDC();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid Vault address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(sca),
+                    address(0),
+                    nexBot,
+                    address(0xDEAD),
+                    address(usdc),
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenNexBotAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexToken implIdx = new IndexToken();
+        ERC1967Proxy proxyIdx = new ERC1967Proxy(
+            address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
+        );
+        IndexToken idx = IndexToken(address(proxyIdx));
+        StagingCustodyAccount sca =
+            StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
+        MockUSDC usdc = new MockUSDC();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid NexBot address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(sca),
+                    vault,
+                    address(0),
+                    address(0xDEAD),
+                    address(usdc),
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_setNexBotAddress_RevertOnZeroAddress() public {
+        vm.startPrank(vm.addr(11));
+        vm.expectRevert(InvalidAddress.selector);
+        store.setNexBotAddress(address(0));
+        vm.stopPrank();
+    }
+
+    function test_setSCA_FailWhenSCAIsZeroAddress() public {
+        vm.startPrank(owner);
+        vm.expectRevert(InvalidAddress.selector);
+        store.setSCA(address(0));
+        vm.stopPrank();
+    }
+
+    function test_setSCA_ElseBranchInRequire() public {
+        vm.startPrank(vm.addr(11));
+        address newSCA = address(0x123456);
+        store.setSCA(newSCA);
+        assertEq(address(store.sca()), newSCA);
+        vm.stopPrank();
+    }
+
+    function test_undoIssuance_ElseBranchInPruneLoop() public {
+        address charlie = vm.addr(6);
+        vm.startPrank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        store.addIssuanceForCurrentRound(bob, 50);
+        store.addIssuanceForCurrentRound(charlie, 25);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoIssuance(alice, 100);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoIssuance(bob, 50);
+        vm.stopPrank();
+
+        address[] memory list = store.addressesInRound(1);
+        assertEq(list.length, 1);
+        assertEq(list[0], charlie);
+    }
+
+    function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.addRedemptionForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoRedemption(alice, 100);
+        vm.stopPrank();
+
+        address[] memory list = store.addressesInRedemptionRound(1);
+        assertEq(list.length, 1);
+        assertEq(list[0], bob);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+        assertEq(store.totalRedemptionByRound(1), 50);
+    }
+
+    function test_nextProcessableRoundId_revertsOnUnsettledRound() public {
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+
+        vm.prank(factory);
+        store.increaseCurrentRoundId();
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("UnsettledRound(uint256)")), 1));
+        store.nextProcessableRoundId();
+    }
+
+    function test_nextProcessableRoundId_returnsCurrentRoundIdWhenNoUnsettledRounds() public {
+        vm.prank(factory);
+        store.increaseCurrentRoundId();
+        vm.prank(factory);
+        store.increaseCurrentRoundId();
+        uint256 nextId = store.nextProcessableRoundId();
+        assertEq(nextId, 3);
     }
 }

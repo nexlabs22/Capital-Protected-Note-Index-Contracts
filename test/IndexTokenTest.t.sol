@@ -4,8 +4,9 @@ pragma solidity ^0.8.7;
 import "forge-std/Test.sol";
 import {IndexToken} from "../src/token/IndexToken.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "./OlympixUnitTest.sol";
 
-contract IndexTokenTest is Test {
+contract IndexTokenTest is OlympixUnitTest("IndexToken") {
     uint256 internal constant SCALAR = 1e20;
 
     IndexToken public indexToken;
@@ -395,5 +396,163 @@ contract IndexTokenTest is Test {
 
         assertEq(indexToken.balanceOf(feeReceiver), 100e18);
         assertEq(indexToken.balanceOf(minter), 900e18);
+    }
+
+    function testInitialize_tokenNameEmpty_reverts() public {
+        IndexToken indexTokenImpl = new IndexToken();
+        vm.expectRevert(bytes("token name cannot be empty"));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(indexTokenImpl),
+                abi.encodeCall(IndexToken.initialize, ("", "MAG7", 1e18, feeReceiver, 1000000e18))
+            )
+        );
+    }
+
+    function testInitialize_tokenSymbolEmpty_reverts() public {
+        IndexToken indexTokenImpl = new IndexToken();
+        vm.expectRevert(bytes("token symbol cannot be empty"));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(indexTokenImpl),
+                abi.encodeCall(IndexToken.initialize, ("Magnificent 7", "", 1e18, feeReceiver, 1000000e18))
+            )
+        );
+    }
+
+    function testInitialize_feeRateZero_reverts() public {
+        IndexToken indexTokenImpl = new IndexToken();
+        vm.expectRevert(bytes("fee rate must be greater than 0"));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(indexTokenImpl),
+                abi.encodeCall(IndexToken.initialize, ("Magnificent 7", "MAG7", 0, feeReceiver, 1000000e18))
+            )
+        );
+    }
+
+    function testInitialize_feeReceiverZeroAddress_reverts() public {
+        IndexToken indexTokenImpl = new IndexToken();
+        vm.expectRevert(bytes("fee receiver cannot be the zero address"));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(indexTokenImpl),
+                abi.encodeCall(IndexToken.initialize, ("Magnificent 7", "MAG7", 1e18, address(0), 1000000e18))
+            )
+        );
+    }
+
+    function testInitialize_supplyCeilingZero_reverts() public {
+        IndexToken indexTokenImpl = new IndexToken();
+        vm.expectRevert(bytes("supply ceiling must be greater than 0"));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(indexTokenImpl),
+                abi.encodeCall(IndexToken.initialize, ("Magnificent 7", "MAG7", 1e18, feeReceiver, 0))
+            )
+        );
+    }
+
+    function testMintToZeroAddress() public {
+        address zero = address(0);
+        vm.startPrank(minter);
+        vm.expectRevert("mint to the zero address");
+        indexToken.mint(zero, 1000e18);
+        vm.stopPrank();
+    }
+
+    function testMintRevertsOnZeroAmount() public {
+        vm.startPrank(minter);
+        vm.expectRevert("mint amount must be greater than 0");
+        indexToken.mint(address(this), 0);
+        vm.stopPrank();
+    }
+
+    function testBurnFromZeroAddress() public {
+        vm.startPrank(minter);
+        indexToken.mint(address(this), 1000e18);
+        assertEq(indexToken.balanceOf(address(this)), 1000e18);
+        vm.expectRevert("burn from the zero address");
+        indexToken.burn(address(0), 100e18);
+        vm.stopPrank();
+    }
+
+    function testMintToFeeReceiverExceedSupplyCeiling() public {
+        vm.startPrank(minter);
+        indexToken.mint(address(this), 1000000e18 - 1e18);
+        assertEq(indexToken.totalSupply(), 1000000e18 - 1e18);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+
+        uint256 feePerDay = indexToken.feeRatePerDayScaled();
+        uint256 totalSupply = indexToken.totalSupply();
+        uint256 expectedFeeAmount = (feePerDay * totalSupply) / 1e20;
+
+        vm.expectRevert("will exceed supply ceiling");
+        indexToken.mintToFeeReceiver();
+    }
+
+    function testSetMethodologistRevertsOnZeroAddress() public {
+        vm.expectRevert();
+        indexToken.setMethodologist(address(0));
+    }
+
+    function testSetMethodologyRevertsOnEmptyString() public {
+        indexToken.setMethodologist(methodologist);
+        assertEq(indexToken.methodologist(), methodologist);
+
+        vm.startPrank(methodologist);
+        vm.expectRevert("methodology cannot be empty");
+        indexToken.setMethodology("");
+        vm.stopPrank();
+    }
+
+    function testSetFeeReceiverRevertsOnZeroAddress() public {
+        vm.expectRevert();
+        indexToken.setFeeReceiver(address(0));
+    }
+
+    function testSetMinterRevertsOnZeroAddress() public {
+        vm.expectRevert();
+        indexToken.setMinter(address(0), true);
+    }
+
+    function testTransferToZeroAddress() public {
+        vm.startPrank(minter);
+        indexToken.mint(address(this), 1000e18);
+        vm.stopPrank();
+
+        vm.expectRevert("transfer to the zero address");
+        indexToken.transfer(address(0), 100e18);
+    }
+
+    function testTransferAmountExceedsBalance() public {
+        vm.startPrank(minter);
+        indexToken.mint(address(this), 1000e18);
+        vm.stopPrank();
+
+        vm.expectRevert("transfer amount exceeds balance");
+        indexToken.transfer(feeReceiver, 2000e18);
+    }
+
+    function testTransferFromToZeroAddressReverts() public {
+        vm.startPrank(minter);
+        indexToken.mint(minter, 1000e18);
+        indexToken.approve(address(this), 100e18);
+        vm.stopPrank();
+
+        vm.expectRevert("transfer to the zero address");
+        indexToken.transferFrom(minter, address(0), 100e18);
+    }
+
+    function testTransferFromAmountExceedsBalance() public {
+        vm.startPrank(minter);
+        indexToken.mint(minter, 1000e18);
+        indexToken.approve(address(this), 100e18);
+        vm.stopPrank();
+
+        vm.expectRevert("transfer amount exceeds balance");
+        indexToken.transferFrom(minter, feeReceiver, 2000e18);
     }
 }

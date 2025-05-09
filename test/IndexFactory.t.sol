@@ -14,6 +14,7 @@ import {Vault} from "../src/vault/Vault.sol";
 import {LinkToken} from "./helpers/LinkToken.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import "../src/factory/FunctionsOracle.sol";
+import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
 
@@ -61,7 +62,7 @@ contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryTest is Test {
+contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     address owner = address(this);
     address feeRec = vm.addr(1);
     address nexBot = vm.addr(2);
