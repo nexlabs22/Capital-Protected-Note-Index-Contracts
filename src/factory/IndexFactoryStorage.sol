@@ -106,38 +106,32 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function setNexBotAddress(address _newNexBotAddress) public onlyOwner {
         if (_newNexBotAddress == address(0)) revert InvalidAddress();
-        // require(_newNexBotAddress != address(0), "invalid Nex Bot address");
         nexBot = _newNexBotAddress;
     }
 
     function setSCA(address _sca) external onlyOwner {
         if (_sca == address(0)) revert InvalidAddress();
-        // require(address(sca) == address(0), "SCA already set");
         require(_sca != address(0), "zero");
         sca = StagingCustodyAccount(_sca);
     }
 
     function setFeeReceiver(address _feeReceiver) public onlyOwner {
         if (_feeReceiver == address(0)) revert InvalidAddress();
-        // require(_feeReceiver != address(0), "invalid fee receiver address");
         feeReceiver = _feeReceiver;
     }
 
     function setIssuanceInputAmount(uint256 _issuanceNonce, uint256 _amount) external onlyFactory {
         if (_amount == 0) revert ZeroAmount();
-        // require(_amount > 0, "Invalid issuance input amount");
         issuanceInputAmount[_issuanceNonce] = _amount;
     }
 
     function setRedemptionInputAmount(uint256 _redemptionNonce, uint256 _amount) external onlyFactory {
         if (_amount == 0) revert ZeroAmount();
-        // require(_amount > 0, "Invalid redemption input amount");
         redemptionInputAmount[_redemptionNonce] = _amount;
     }
 
     function setBurnedTokenAmountByNonce(uint256 _redemptionNonce, uint256 _burnedAmount) external onlyFactory {
         if (_burnedAmount == 0) revert ZeroAmount();
-        // require(_burnedAmount > 0, "Invalid burn amount");
         burnedTokenAmountByNonce[_redemptionNonce] = _burnedAmount;
     }
 

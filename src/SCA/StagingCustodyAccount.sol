@@ -245,10 +245,21 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             totalValue += (bernBal * bernxPrice) / 1e18;
         }
 
-        address idxc5 = functionsOracle.currentList(1);
-        uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
-        if (c5Bal > 0) {
-            totalValue += (c5Bal * crypto5Price) / 1e18;
+        // address idxc5 = functionsOracle.currentList(1);
+        // uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
+        // if (c5Bal > 0) {
+        //     totalValue += (c5Bal * crypto5Price) / 1e18;
+        // }
+
+        uint256 totalComps = functionsOracle.totalCurrentList();
+        if (totalComps > 1) {
+            address idxc5 = functionsOracle.currentList(1);
+            if (idxc5 != address(0)) {
+                uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
+                if (c5Bal != 0) {
+                    totalValue += (c5Bal * crypto5Price) / 1e18;
+                }
+            }
         }
 
         uint256 usdcRaised = factoryStorage.totalIssuanceByRound(roundId);
