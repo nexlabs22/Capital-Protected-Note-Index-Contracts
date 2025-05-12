@@ -37,6 +37,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 indexed roundId, uint256 indexed indexTokenAmount, uint256 indexed usdcAmount, uint256 timestamp
     );
     event Refunded(address indexed to, uint256 indexed amount, uint256 timestamp);
+    event IssuanceCrypto5(uint256 indexed amount, uint256 timestamp);
+    event RedemptionCrpyto5(uint256 indexed amount, uint256 timestamp);
+    event RedemptionSettled(uint256 indexed roundId, uint256 indexed amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
@@ -116,6 +119,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
             address(usdc), _tokenInPath, _tokenInFees, usdcAmount
         );
+        emit IssuanceCrypto5(usdcAmount, block.timestamp);
     }
 
     function redemptionCrypto5(
@@ -125,6 +129,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint24[] memory _tokenOutFees
     ) public onlyOwnerOrOperator {
         ICrypto5Factory(crypto5FactoryAddress).redemption(amountIn, _tokenOut, _tokenOutPath, _tokenOutFees);
+        emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
     function distributeTokens( /*uint256 mintAmount,*/ uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
@@ -197,6 +202,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (dust > 0) usdc.safeTransfer(factoryStorage.feeReceiver(), dust);
 
         factoryStorage.settleRedemption(roundId);
+
+        emit RedemptionSettled(roundId, totalUSDC, block.timestamp);
     }
 
     function initiateRedemptionBatch(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
