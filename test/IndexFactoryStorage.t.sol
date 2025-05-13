@@ -187,7 +187,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         DummyOracle oracle = new DummyOracle();
 
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid IndexFactory address");
+        vm.expectRevert("Invalid _indexFactory address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(
@@ -214,7 +214,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.startPrank(owner);
 
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid FunctionsOracle address");
+        vm.expectRevert("Invalid _functionsOracle address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(
@@ -481,7 +481,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         DummyOracle oracle = new DummyOracle();
         IndexFactoryStorage impl = new IndexFactoryStorage();
 
-        vm.expectRevert("Invalid IndexToken address");
+        vm.expectRevert("Invalid _indexToken address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(
@@ -507,7 +507,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.startPrank(owner);
         DummyOracle oracle = new DummyOracle();
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid StagingCustodyAccount address");
+        vm.expectRevert("Invalid _stagingCustodyAccount address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(
@@ -541,7 +541,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid Vault address");
+        vm.expectRevert("Invalid _vault address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(
@@ -575,7 +575,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid NexBot address");
+        vm.expectRevert("Invalid _nexBot address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(

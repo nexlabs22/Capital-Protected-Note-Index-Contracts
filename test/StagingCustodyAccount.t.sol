@@ -14,6 +14,7 @@ import {Vault} from "../src/vault/Vault.sol";
 import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
+error ZeroAddress();
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -260,10 +261,10 @@ contract StagingCustodyAccountTest is Test {
     function test_refund_FailWhenToIsZeroAddressOrAmountIsZero() public {
         vm.startPrank(nexBot);
 
-        vm.expectRevert("bad refund");
+        vm.expectRevert(ZeroAddress.selector);
         sca.refund(address(0), 1);
 
-        vm.expectRevert("bad refund");
+        vm.expectRevert(ZeroAmount.selector);
         sca.refund(alice, 0);
 
         vm.stopPrank();
