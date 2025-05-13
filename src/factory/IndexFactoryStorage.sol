@@ -75,12 +75,15 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _bernx,
         bool _isMainnet
     ) external initializer {
-        require(_indexToken != address(0), "Invalid IndexToken address");
-        require(_indexFactory != address(0), "Invalid IndexFactory address");
-        require(_functionsOracle != address(0), "Invalid FunctionsOracle address");
-        require(_stagingCustodyAccount != address(0), "Invalid StagingCustodyAccount address");
-        require(_vault != address(0), "Invalid Vault address");
-        require(_nexBot != address(0), "Invalid NexBot address");
+        require(_indexToken != address(0), "Invalid _indexToken address");
+        require(_indexFactory != address(0), "Invalid _indexFactory address");
+        require(_functionsOracle != address(0), "Invalid _functionsOracle address");
+        require(_stagingCustodyAccount != address(0), "Invalid _stagingCustodyAccount address");
+        require(_vault != address(0), "Invalid _vault address");
+        require(_nexBot != address(0), "Invalid _nexBot address");
+        require(_crypto5FactoryAddress != address(0), "Invalid _crypto5FactoryAddress address");
+        require(_usdc != address(0), "Invalid _usdc address");
+        require(_bernx != address(0), "Invalid _bernx address");
 
         __Ownable_init(msg.sender);
 
@@ -148,6 +151,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function increaseCurrentRoundId() external onlyFactory {
         currentRoundId++;
+    }
+
+    function increaseRedemptionRoundId() external onlyFactory {
+        redemptionRoundId++;
     }
 
     function setRedemptionRoundActive(uint256 roundId, bool flag) external onlyFactory {
@@ -270,10 +277,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         delete totalRedemptionByRound[roundId];
 
         redemptionRoundCompleted[roundId] = true;
-        redemptionRoundActive[roundId] = false;
+        // redemptionRoundActive[roundId] = false;
         emit RedemptionSettled(roundId);
 
-        ++redemptionRoundId;
+        // ++redemptionRoundId;
     }
 
     function _pruneAddress(uint256 round, address user) internal {

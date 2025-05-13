@@ -16,6 +16,8 @@ import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {Vault} from "../vault/Vault.sol";
 
 error ZeroAmount();
+error ZeroAddress();
+error RedemptionAmountIsZero();
 
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
@@ -55,6 +57,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function initialize(address _indexFactroyStorageAddress) external initializer {
+        require(_indexFactroyStorageAddress != address(0), "Invalid address for _indexFactroyStorageAddress");
+
         __Ownable_init(msg.sender);
 
         factoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
@@ -102,12 +106,19 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function rescue(address token, address to, uint256 amount) external onlyOwnerOrOperator {
+        if (token == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
         IERC20(token).safeTransfer(to, amount);
         emit Rescue(token, to, amount, block.timestamp);
     }
 
     function refund(address to, uint256 amount) external onlyOwnerOrOperator {
-        require(to != address(0) && amount > 0, "bad refund");
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        // require(to != address(0) && amount > 0, "bad refund");
+
         usdc.safeTransfer(to, amount);
         emit Refunded(to, amount, block.timestamp);
     }
@@ -171,7 +182,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function settleRedemption(uint256 roundId, uint256 usdcFromBernx, uint256 usdcFromCr5) external onlyNexBot {
-        require(factoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
+        if (factoryStorage.totalRedemptionByRound(roundId) < 0) {
+            revert RedemptionAmountIsZero();
+        }
+        // require(factoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
         require(factoryStorage.redemptionRoundActive(roundId), "batch not started or already settled");
 
         if (usdcFromBernx > 0) {
@@ -210,9 +224,13 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         external
         onlyOwnerOrOperator
     {
-        require(factoryStorage.totalRedemptionByRound(roundId) > 0, "redemption round empty");
+        if (factoryStorage.totalRedemptionByRound(roundId) < 0) {
+            revert RedemptionAmountIsZero();
+        }
+        // require(factoryStorage.totalRedemptionByRound(roundId) > 0, "redemption round empty");
         require(!factoryStorage.redemptionRoundActive(roundId), "batch already started");
-        factoryStorage.setRedemptionRoundActive(roundId, true);
+        // factoryStorage.setRedemptionRoundActive(roundId, true); // should set to false
+        factoryStorage.setRedemptionRoundActive(roundId, false);
 
         uint256 pct1e18 = factoryStorage.totalRedemptionByRound(roundId) * 1e18 / indexToken.totalSupply();
 
@@ -238,6 +256,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (cr5Amount > 0) {
             redemptionCrypto5(cr5Amount, address(usdc), tokenOutPath, tokenOutFees);
         }
+
+        factoryStorage.increaseRedemptionRoundId();
+        factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
     }
 
     function calculateMintAmount(uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
