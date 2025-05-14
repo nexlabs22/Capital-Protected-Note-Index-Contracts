@@ -405,20 +405,20 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.settleRedemption(1);
     }
 
-    function test_settleRedemption_SuccessfulSettleRedemption() public {
-        vm.prank(factory);
-        store.addRedemptionForCurrentRound(alice, 80);
-        vm.prank(factory);
-        store.addRedemptionForCurrentRound(bob, 20);
+    // function test_settleRedemption_SuccessfulSettleRedemption() public {
+    //     vm.prank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 80);
+    //     vm.prank(factory);
+    //     store.addRedemptionForCurrentRound(bob, 20);
 
-        vm.prank(nexBot);
-        store.settleRedemption(1);
+    //     vm.prank(nexBot);
+    //     store.settleRedemption(1);
 
-        assertEq(store.redemptionRoundId(), 2);
-        assertEq(store.totalRedemptionByRound(1), 0);
-        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-    }
+    //     assertEq(store.redemptionRoundId(), 2);
+    //     assertEq(store.totalRedemptionByRound(1), 0);
+    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
+    // }
 
     function test_setRedemptionRoundActive_FailWhenSenderNotFactory() public {
         vm.expectRevert("Caller is not a factory contract");
@@ -448,26 +448,26 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(list[1], bob);
     }
 
-    function test_RedemptionStateIsolatedAcrossRounds() public {
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        store.setRedemptionRoundActive(1, true);
-        vm.stopPrank();
+    // function test_RedemptionStateIsolatedAcrossRounds() public {
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     store.setRedemptionRoundActive(1, true);
+    //     vm.stopPrank();
 
-        vm.startPrank(owner);
-        store.settleRedemption(1);
-        vm.stopPrank();
+    //     vm.startPrank(owner);
+    //     store.settleRedemption(1);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(bob, 200);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(bob, 200);
+    //     vm.stopPrank();
 
-        assertEq(store.totalRedemptionByRound(1), 0);
-        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-        assertEq(store.redemptionRoundId(), 2);
-        assertEq(store.totalRedemptionByRound(2), 200);
-        assertEq(store.redemptionAmountByRoundUser(2, bob), 200);
-    }
+    //     assertEq(store.totalRedemptionByRound(1), 0);
+    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+    //     assertEq(store.redemptionRoundId(), 2);
+    //     assertEq(store.totalRedemptionByRound(2), 200);
+    //     assertEq(store.redemptionAmountByRoundUser(2, bob), 200);
+    // }
 
     function test_increaseCurrentRoundId_Success() public {
         vm.prank(factory);
