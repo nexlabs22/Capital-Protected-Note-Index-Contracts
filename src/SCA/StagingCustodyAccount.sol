@@ -3,7 +3,6 @@ pragma solidity ^0.8.25;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -98,7 +97,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function withdrawForPurchase(uint256 roundId, uint256 amount) public onlyOwnerOrOperator nonReentrant {
         require(factoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
-        if (amount <= 0) revert ZeroAmount();
+        if (amount == 0) revert ZeroAmount();
         // require(amount > 0, "zero amount");
 
         IERC20(usdc).safeTransfer(nexBot, amount);
@@ -182,11 +181,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function settleRedemption(uint256 roundId, uint256 usdcFromBernx, uint256 usdcFromCr5) external onlyNexBot {
-        if (factoryStorage.totalRedemptionByRound(roundId) < 0) {
+        if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
             revert RedemptionAmountIsZero();
         }
-        // require(factoryStorage.totalRedemptionByRound(roundId) > 0, "nothing to settle");
-        require(factoryStorage.redemptionRoundActive(roundId), "batch not started or already settled");
 
         if (usdcFromBernx > 0) {
             usdc.safeTransferFrom(msg.sender, address(this), usdcFromBernx);
@@ -207,7 +204,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
             if (owed > 0) {
                 usdc.safeTransfer(user, owed);
-                indexToken.burn(address(this), idx);
                 paid += owed;
             }
         }
@@ -224,38 +220,42 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         external
         onlyOwnerOrOperator
     {
-        if (factoryStorage.totalRedemptionByRound(roundId) < 0) {
-            revert RedemptionAmountIsZero();
-        }
-        // require(factoryStorage.totalRedemptionByRound(roundId) > 0, "redemption round empty");
-        require(!factoryStorage.redemptionRoundActive(roundId), "batch already started");
-        // factoryStorage.setRedemptionRoundActive(roundId, true); // should set to false
+        uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);
+        if (totalIdxThisRound == 0) revert RedemptionAmountIsZero();
+        if (factoryStorage.redemptionRoundActive(roundId)) revert("batch already started");
+
         factoryStorage.setRedemptionRoundActive(roundId, false);
 
-        uint256 pct1e18 = factoryStorage.totalRedemptionByRound(roundId) * 1e18 / indexToken.totalSupply();
+        uint256 supplyBefore = indexToken.totalSupply();
+        uint256 pct1e18 = totalIdxThisRound * 1e18 / supplyBefore;
 
-        uint256 totalCurrentList = functionsOracle.totalCurrentList();
-        for (uint256 i; i < totalCurrentList; ++i) {
+        indexToken.burn(address(this), totalIdxThisRound);
+        require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
+
+        uint256 nComps = functionsOracle.totalCurrentList();
+        for (uint256 i; i < nComps; ++i) {
             address comp = functionsOracle.currentList(i);
-            uint256 balance = IERC20(comp).balanceOf(address(vault));
-            if (balance == 0) continue;
+            uint256 bal = IERC20(comp).balanceOf(address(vault));
+            if (bal == 0) continue;
 
-            uint256 slice = balance * pct1e18 / 1e18;
+            uint256 slice = bal * pct1e18 / 1e18;
             if (slice > 0) {
                 vault.withdrawFunds(comp, address(this), slice);
             }
         }
 
-        uint256 bernBalance = IERC20(bernx).balanceOf(address(vault));
-        uint256 bernSlice = bernBalance * pct1e18 / 1e18;
+        uint256 bernBal = IERC20(bernx).balanceOf(address(vault));
+        uint256 bernSlice = bernBal * pct1e18 / 1e18;
         if (bernSlice > 0) {
             vault.withdrawFunds(bernx, nexBot, bernSlice);
         }
 
-        uint256 cr5Amount = IERC20(address(indexToken)).balanceOf(address(this));
-        if (cr5Amount > 0) {
-            redemptionCrypto5(cr5Amount, address(usdc), tokenOutPath, tokenOutFees);
+        uint256 c5Amount = IERC20(address(indexToken)).balanceOf(address(this));
+        if (c5Amount > 0) {
+            redemptionCrypto5(c5Amount, address(usdc), tokenOutPath, tokenOutFees);
         }
+
+        // indexToken.burn(address(this), totalIdxThisRound);
 
         factoryStorage.increaseRedemptionRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
@@ -272,12 +272,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (bernBal > 0) {
             totalValue += (bernBal * bernxPrice) / 1e18;
         }
-
-        // address idxc5 = functionsOracle.currentList(1);
-        // uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
-        // if (c5Bal > 0) {
-        //     totalValue += (c5Bal * crypto5Price) / 1e18;
-        // }
 
         uint256 totalComps = functionsOracle.totalCurrentList();
         if (totalComps > 1) {

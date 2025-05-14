@@ -79,7 +79,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
-        // require(_inputAmount > 0, "Invalid input amount");
         uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
         IERC20(usdc).safeTransferFrom(msg.sender, address(sca), _inputAmount); // should change to quantityIn
         IERC20(usdc).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);

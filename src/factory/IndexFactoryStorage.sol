@@ -51,7 +51,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     event RedemptionSettled(uint256 indexed roundId);
 
     modifier onlyFactory() {
-        require(msg.sender == address(indexFactory) || msg.sender == nexBot, "Caller is not a factory contract");
+        require(
+            msg.sender == address(indexFactory) || msg.sender == nexBot || msg.sender == address(sca),
+            "Caller is not a factory contract"
+        );
         _;
     }
 
@@ -227,7 +230,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function undoRedemption(address user, uint256 amount) external onlyFactory {
-        uint256 roundId = currentRoundId;
+        // uint256 roundId = currentRoundId;
+        uint256 roundId = redemptionRoundId;
         uint256 before = redemptionAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
 
@@ -277,10 +281,9 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         delete totalRedemptionByRound[roundId];
 
         redemptionRoundCompleted[roundId] = true;
-        // redemptionRoundActive[roundId] = false;
-        emit RedemptionSettled(roundId);
+        redemptionRoundActive[roundId] = false;
 
-        // ++redemptionRoundId;
+        emit RedemptionSettled(roundId);
     }
 
     function _pruneAddress(uint256 round, address user) internal {
