@@ -89,7 +89,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         issuanceNonce++;
         factoryStorage.setIssuanceInputAmount(issuanceNonce, pureIssuanceAmount);
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
-
         factoryStorage.addIssuanceForCurrentRound(msg.sender, pureIssuanceAmount);
 
         emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), pureIssuanceAmount, 0, block.timestamp);

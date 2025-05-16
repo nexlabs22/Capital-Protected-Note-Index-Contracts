@@ -13,6 +13,7 @@ import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {Vault} from "../src/vault/Vault.sol";
 import {LinkToken} from "./helpers/LinkToken.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
+import {Token} from "./helpers/Token.sol";
 import "../src/factory/FunctionsOracle.sol";
 import "./OlympixUnitTest.sol";
 
@@ -79,7 +80,10 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     IndexFactory factory;
     Vault vault;
     TestFunctionsOracle oracle;
+    // FunctionsOracle oracle;
     LinkToken link;
+    Token token0;
+    Token token1;
 
     uint256 constant ONE_USDC = 1e6;
 
@@ -485,98 +489,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.issuanceIsCompleted(1));
     }
 
-    // function testFullIssuanceFlow() public {
-    //     vm.startPrank(oracle.owner());
-    //     oracle.setOperator(address(sca), true);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(idx.owner());
-    //     idx.setMinter(address(sca), true);
-    //     vm.stopPrank();
-
-    //     uint256 inAmt = 100_000 * ONE_USDC;
-
-    //     vm.prank(alice);
-    //     uint256 nonce = factory.issuanceIndexToken(inAmt);
-    //     assertEq(nonce, 1);
-
-    //     assertEq(usdc.balanceOf(address(sca)), inAmt);
-
-    //     uint256 scaBalBefore = usdc.balanceOf(address(sca));
-
-    //     vm.prank(nexBot);
-    //     sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
-
-    //     uint256 eighties = (inAmt * 80) / 100;
-    //     assertEq(usdc.balanceOf(nexBot), eighties);
-    //     assertEq(usdc.balanceOf(address(sca)) + eighties, scaBalBefore, "unexpected USDC delta");
-
-    //     assertEq(store.currentRoundId(), 2);
-
-    //     uint256 mintAmt = 1_000 ether;
-
-    //     vm.prank(nexBot);
-    //     sca.distributeTokens(mintAmt, 1);
-
-    //     assertEq(idx.balanceOf(alice), mintAmt);
-
-    //     assertTrue(store.issuanceIsCompleted(1));
-    //     assertEq(store.totalIssuanceByRound(1), 0);
-    // }
-
-    // function testFullIssuanceFlow_Multi() public {
-    //     vm.startPrank(oracle.owner());
-    //     oracle.setOperator(address(sca), true);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(idx.owner());
-    //     idx.setMinter(address(sca), true);
-    //     vm.stopPrank();
-
-    //     address carol = vm.addr(9);
-    //     usdc.mint(carol, 1_000_000 * ONE_USDC);
-    //     vm.prank(carol);
-    //     usdc.approve(address(factory), type(uint256).max);
-
-    //     uint256 aAmt = 60_000 * ONE_USDC;
-    //     uint256 bAmt = 30_000 * ONE_USDC;
-    //     uint256 cAmt = 10_000 * ONE_USDC;
-
-    //     vm.prank(alice);
-    //     factory.issuanceIndexToken(aAmt);
-    //     vm.prank(bob);
-    //     factory.issuanceIndexToken(bAmt);
-    //     vm.prank(carol);
-    //     factory.issuanceIndexToken(cAmt);
-
-    //     uint256 totalIn = aAmt + bAmt + cAmt;
-    //     assertEq(usdc.balanceOf(address(sca)), totalIn, "all USDC parked in SCA");
-
-    //     uint256 beforeBot = usdc.balanceOf(nexBot);
-
-    //     vm.prank(nexBot);
-    //     sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
-
-    //     uint256 expectedToBot = (totalIn * 80) / 100;
-    //     assertEq(usdc.balanceOf(nexBot) - beforeBot, expectedToBot, "80 % to bot");
-    //     assertEq(store.currentRoundId(), 2, "round id bumped");
-
-    //     idx.setMinter(address(sca), true);
-
-    //     uint256 mintAmt = 1_000 ether;
-    //     vm.prank(nexBot);
-    //     sca.distributeTokens(mintAmt, 1);
-
-    //     uint256 aliceShare = (mintAmt * aAmt) / totalIn;
-    //     uint256 bobShare = (mintAmt * bAmt) / totalIn;
-    //     uint256 carolShare = (mintAmt * cAmt) / totalIn;
-
-    //     assertEq(idx.balanceOf(alice), aliceShare);
-    //     assertEq(idx.balanceOf(bob), bobShare);
-    //     assertEq(idx.balanceOf(carol), carolShare);
-    //     assertTrue(store.issuanceIsCompleted(1), "round settled");
-    // }
-
     function test_cancelIssuance_revertsWhenAmtIsZero() public {
         vm.prank(address(factory));
         store.setIssuanceRequesterByNonce(1, alice);
@@ -586,4 +498,21 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.cancelIssuance(1);
         vm.stopPrank();
     }
+
+    // function updateOracleList() public {
+    //     address[] memory assetList = new address[](10);
+    //     assetList[0] = address(token0);
+    //     assetList[1] = address(token1);
+
+    //     uint256[] memory tokenShares = new uint256[](10);
+    //     tokenShares[0] = 80e18;
+    //     tokenShares[1] = 20e18;
+
+    //     link.transfer(address(oracle), 1e17);
+    //     // bytes32 requestId = factoryStorage.requestAssetsData();
+    //     // oracle.fulfillOracleFundingRateRequest(requestId, assetList, tokenShares);
+    //     bytes32 requestId = oracle.requestAssetsData("console.log('Hello, World!');", 0, 0);
+    //     bytes memory data = abi.encode(assetList, tokenShares);
+    //     oracle.fulfillRequest(address(oracle), requestId, data);
+    // }
 }

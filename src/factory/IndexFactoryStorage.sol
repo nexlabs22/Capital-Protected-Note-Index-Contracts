@@ -263,10 +263,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 roundIdIsActive[roundId] = false;
             }
         }
-
-        // if (redemptionAmountByRoundUser[roundId][user] == 0) {
-        //     _pruneAddress(roundId, user);
-        // }
     }
 
     function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
