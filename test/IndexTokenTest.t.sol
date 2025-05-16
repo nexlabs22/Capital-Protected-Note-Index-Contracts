@@ -555,4 +555,14 @@ contract IndexTokenTest is OlympixUnitTest("IndexToken") {
         vm.expectRevert("transfer amount exceeds balance");
         indexToken.transferFrom(minter, feeReceiver, 2000e18);
     }
+
+    function testTransferFromFromZeroAddressReverts() public {
+        vm.startPrank(minter);
+        indexToken.mint(minter, 1000e18);
+        indexToken.approve(address(this), 100e18);
+        vm.stopPrank();
+
+        vm.expectRevert("transfer from the zero address");
+        indexToken.transferFrom(address(0), feeReceiver, 100e18);
+    }
 }

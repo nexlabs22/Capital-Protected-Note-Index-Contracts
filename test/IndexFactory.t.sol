@@ -579,4 +579,14 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     //     assertEq(idx.balanceOf(carol), carolShare);
     //     assertTrue(store.issuanceIsCompleted(1), "round settled");
     // }
+
+    function test_cancelIssuance_revertsWhenAmtIsZero() public {
+        vm.prank(address(factory));
+        store.setIssuanceRequesterByNonce(1, alice);
+
+        vm.startPrank(alice);
+        vm.expectRevert("nothing to refund");
+        factory.cancelIssuance(1);
+        vm.stopPrank();
+    }
 }
