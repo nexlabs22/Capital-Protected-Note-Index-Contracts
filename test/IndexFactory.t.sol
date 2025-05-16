@@ -169,16 +169,18 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuanceHappyPath() public {
         uint256 inAmt = 10_000 * ONE_USDC;
-        uint256 fee = inAmt * store.feeRate() / 10_000;
+        uint256 pureAmount = inAmt - (inAmt * 10) / 10000;
+        uint256 fee = (inAmt * 10) / 10000;
+        // uint256 fee = inAmt * store.feeRate() / 10_000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), inAmt, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
         uint256 nonce = factory.issuanceIndexToken(inAmt);
 
         assertEq(nonce, 1);
         assertEq(factory.issuanceNonce(), 1);
-        assertEq(usdc.balanceOf(address(sca)), inAmt);
+        assertEq(usdc.balanceOf(address(sca)), pureAmount);
         assertEq(usdc.balanceOf(feeRec), fee);
     }
 
@@ -240,17 +242,19 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuance_HappyPath() public {
         uint256 amount = 10_000 * ONE_USDC;
-        uint256 fee = amount * store.feeRate() / 10_000;
+        uint256 pureAmount = amount - (amount * 10) / 10000;
+        uint256 fee = (amount * 10) / 10000;
+        // uint256 fee = amount * store.feeRate() / 10_000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
         factory.issuanceIndexToken(amount);
 
         assertEq(factory.issuanceNonce(), 1);
-        assertEq(usdc.balanceOf(address(sca)), amount);
+        assertEq(usdc.balanceOf(address(sca)), pureAmount);
         assertEq(usdc.balanceOf(feeRec), fee);
-        assertEq(store.issuanceInputAmount(1), amount);
+        assertEq(store.issuanceInputAmount(1), pureAmount);
     }
 
     function testIssuance_zeroReverts() public {
@@ -330,7 +334,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuance_updatesStorageAndRoundData() public {
         uint256 amt = 25_000 * ONE_USDC;
-        uint256 fee = amt * store.feeRate() / 10_000;
+        uint256 fee = (amt * 10) / 10000;
+        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         uint256 n = factory.issuanceIndexToken(amt);
@@ -338,12 +343,12 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(n, 1);
         assertEq(factory.issuanceNonce(), 1);
 
-        assertEq(usdc.balanceOf(address(sca)), amt);
+        assertEq(usdc.balanceOf(address(sca)), pureAmount);
         assertEq(usdc.balanceOf(feeRec), fee);
 
-        assertEq(store.totalIssuanceByRound(1), amt);
-        assertEq(store.issuanceAmountByRoundUser(1, alice), amt);
-        assertEq(store.issuanceInputAmount(n), amt);
+        assertEq(store.totalIssuanceByRound(1), pureAmount);
+        assertEq(store.issuanceAmountByRoundUser(1, alice), pureAmount);
+        assertEq(store.issuanceInputAmount(n), pureAmount);
         assertEq(store.issuanceRequesterByNonce(n), alice);
         assertEq(store.roundIdIsActive(1), true);
     }
@@ -362,15 +367,17 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuance_emitsCorrectEvent() public {
         uint256 amt = 5_555 * ONE_USDC;
+        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amt, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
         factory.issuanceIndexToken(amt);
     }
 
     function testCancelIssuance_HappyPath() public {
         uint256 amt = 8_000 * ONE_USDC;
+        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         uint256 nonce = factory.issuanceIndexToken(amt);
@@ -381,7 +388,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.cancelIssuance(nonce);
 
         uint256 balAfter = usdc.balanceOf(alice);
-        assertEq(balAfter - balBefore, amt, "refund missing");
+        assertEq(balAfter - balBefore, pureAmount, "refund missing");
 
         assertTrue(store.issuanceIsCompleted(nonce));
         assertEq(store.totalIssuanceByRound(1), 0);
@@ -400,36 +407,30 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         // idx.setMinter(address(sca), true);
 
         uint256 inAmt = 100_000 * ONE_USDC;
+        uint256 pureAmount = inAmt - (inAmt * 10) / 10000;
 
         vm.prank(alice);
         factory.issuanceIndexToken(inAmt);
-        assertEq(usdc.balanceOf(address(sca)), inAmt);
+        assertEq(usdc.balanceOf(address(sca)), pureAmount);
 
         vm.prank(nexBot);
         sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
 
-        uint256 toBot = inAmt * 80 / 100;
+        uint256 toBot = pureAmount * 80 / 100;
         assertEq(usdc.balanceOf(nexBot), toBot);
 
         uint256 bernQty = 50_000 ether;
         bond.mint(address(sca), bernQty);
 
-        // uint256 mintQty = 1_000 ether;
-        // uint256 bondPrice = 2e18;
-        // uint256 c5Price = 1e18;
-        // vm.prank(nexBot);
-        // sca.distributeTokens(1, bondPrice, c5Price);
-
-        uint256 bondPrice = 2e18; // 2 USD  (18-dec)
-        uint256 c5Price = 1e18; // 1 USD
+        uint256 bondPrice = 2e18;
+        uint256 c5Price = 1e18;
         uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
         sca.distributeTokens(1, bondPrice, c5Price);
 
-        // assertEq(idx.balanceOf(alice), mintQty);
         assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
-        assertEq(idxc5.balanceOf(address(vault)), inAmt / 5);
+        assertEq(idxc5.balanceOf(address(vault)), pureAmount / 5);
 
         assertTrue(store.issuanceIsCompleted(1));
     }
@@ -451,9 +452,12 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         usdc.approve(address(factory), type(uint256).max);
 
         uint256 aAmt = 60_000 * ONE_USDC;
+        uint256 pureAAmount = aAmt - (aAmt * 10) / 10000;
         uint256 bAmt = 30_000 * ONE_USDC;
+        uint256 pureBAmount = bAmt - (bAmt * 10) / 10000;
         uint256 cAmt = 10_000 * ONE_USDC;
-        uint256 totalIn = aAmt + bAmt + cAmt;
+        uint256 pureCAmount = cAmt - (cAmt * 10) / 10000;
+        uint256 totalIn = pureAAmount + pureBAmount + pureCAmount;
 
         vm.prank(alice);
         factory.issuanceIndexToken(aAmt);
@@ -467,22 +471,15 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         bond.mint(address(sca), 77_000 ether);
 
-        // uint256 mintQty = 1_000 ether;
-        // uint256 bondPrice = 2e18;
-        // uint256 c5Price = 1e18;
-        uint256 bondPrice = 2e18; // 2 USD
-        uint256 c5Price = 1e18; // 1 USD
+        uint256 bondPrice = 2e18;
+        uint256 c5Price = 1e18;
         uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
         sca.distributeTokens(1, bondPrice, c5Price);
 
-        // assertEq(idx.balanceOf(alice), mintQty * aAmt / totalIn);
-        // assertEq(idx.balanceOf(bob), mintQty * bAmt / totalIn);
-        // assertEq(idx.balanceOf(carol), mintQty * cAmt / totalIn);
-
-        assertEq(idx.balanceOf(alice), expectedMint * aAmt / totalIn);
-        assertEq(idx.balanceOf(bob), expectedMint * bAmt / totalIn);
-        assertEq(idx.balanceOf(carol), expectedMint * cAmt / totalIn);
+        assertEq(idx.balanceOf(alice), expectedMint * pureAAmount / totalIn);
+        assertEq(idx.balanceOf(bob), expectedMint * pureBAmount / totalIn);
+        assertEq(idx.balanceOf(carol), expectedMint * pureCAmount / totalIn);
 
         assertEq(idxc5.balanceOf(address(vault)), totalIn / 5);
         assertTrue(store.issuanceIsCompleted(1));
