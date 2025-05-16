@@ -222,14 +222,17 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     {
         uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);
         if (totalIdxThisRound == 0) revert RedemptionAmountIsZero();
-        if (factoryStorage.redemptionRoundActive(roundId)) revert("batch already started");
+        if (!factoryStorage.redemptionRoundActive(roundId)) {
+            revert("batch not started");
+        }
+        // if (factoryStorage.redemptionRoundActive(roundId)) revert("batch already started");
 
         factoryStorage.setRedemptionRoundActive(roundId, false);
 
         uint256 supplyBefore = indexToken.totalSupply();
         uint256 pct1e18 = totalIdxThisRound * 1e18 / supplyBefore;
 
-        indexToken.burn(address(this), totalIdxThisRound);
+        // indexToken.burn(address(this), totalIdxThisRound);
         require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
 
         uint256 nComps = functionsOracle.totalCurrentList();
@@ -255,7 +258,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             redemptionCrypto5(c5Amount, address(usdc), tokenOutPath, tokenOutFees);
         }
 
-        // indexToken.burn(address(this), totalIdxThisRound);
+        indexToken.burn(address(this), totalIdxThisRound);
 
         factoryStorage.increaseRedemptionRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
