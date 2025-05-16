@@ -88,6 +88,12 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
         uint256 balance = usdc.balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
+
+        // for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
+        //     address tokenAddress = functionsOracle.currentList(i);
+        //     uint256 amount = balance * functionsOracle.tokenCurrentMarketShare(tokenAddress) / 100e18;
+        // }
+
         uint256 amount20 = (balance * 20) / 100;
         uint256 amount80 = balance - amount20;
         issuanceCrypto5(amount20, _tokenInPath, _tokenInFees);

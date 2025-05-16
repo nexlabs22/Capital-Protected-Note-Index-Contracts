@@ -26,7 +26,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     address public bond;
     address public crypto5FactoryAddress;
     address public feeReceiver;
-    uint256 public feeRate;
+    uint8 public feeRate;
     uint256 public currentRoundId;
     uint256 public redemptionRoundId;
     address public nexBot;
@@ -46,6 +46,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => bool) public redemptionRoundActive;
     mapping(uint256 => bool) public redemptionRoundCompleted;
     mapping(uint256 => address[]) public redemptionAddrs;
+    mapping(uint256 => uint256) public roundIdToBondAmount;
+    mapping(uint256 => uint256) public roundIdToCrypto5Amount;
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
@@ -126,6 +128,16 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function setFeeReceiver(address _feeReceiver) public onlyOwner {
         if (_feeReceiver == address(0)) revert InvalidAddress();
         feeReceiver = _feeReceiver;
+    }
+
+    function setBondAmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
+        if (_amount == 0) revert ZeroAmount();
+        roundIdToBondAmount[_roundId] = _amount;
+    }
+
+    function setCrypto5AmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
+        if (_amount == 0) revert ZeroAmount();
+        roundIdToCrypto5Amount[_roundId] = _amount;
     }
 
     function setIssuanceInputAmount(uint256 _issuanceNonce, uint256 _amount) external onlyFactory {

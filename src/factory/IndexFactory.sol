@@ -12,6 +12,7 @@ import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
+import {FeeCalculation} from "../libraries/FeeCalculation.sol";
 
 error ZeroAmount();
 
@@ -79,17 +80,19 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
-        uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
-        IERC20(usdc).safeTransferFrom(msg.sender, address(sca), _inputAmount); // should change to quantityIn
+        // uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
+        uint256 feeAmount = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
+        uint256 pureIssuanceAmount = _inputAmount - feeAmount;
+        IERC20(usdc).safeTransferFrom(msg.sender, address(sca), pureIssuanceAmount);
         IERC20(usdc).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
 
         issuanceNonce++;
-        factoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
+        factoryStorage.setIssuanceInputAmount(issuanceNonce, pureIssuanceAmount);
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
 
-        factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
+        factoryStorage.addIssuanceForCurrentRound(msg.sender, pureIssuanceAmount);
 
-        emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), _inputAmount, 0, block.timestamp);
+        emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), pureIssuanceAmount, 0, block.timestamp);
         return issuanceNonce;
     }
 
