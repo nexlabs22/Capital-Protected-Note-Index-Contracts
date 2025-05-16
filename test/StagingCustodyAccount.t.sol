@@ -548,11 +548,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         // store.setRedemptionRoundActive(1, true);
     }
 
-    /*───────────────────────────────────────────────────────────
-                               Tests
-    ───────────────────────────────────────────────────────────*/
-
-    /// @dev checks burn-and-state bookkeeping + non-reentrancy modifier
     function test_initiateRedemptionBatch_UpdatesStateAndBurns() public {
         uint256 idxAlice = 80 ether;
         uint256 idxBob = 20 ether;
@@ -564,22 +559,16 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.prank(nexBot);
         sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
 
-        // totalSupply reduced by burned amount
         assertEq(idx.totalSupply(), supplyBefore - (idxAlice + idxBob));
 
-        // ① old round inactive  ② new round id == 2 and already active
         assertFalse(store.redemptionRoundActive(1));
         assertEq(store.redemptionRoundId(), 2);
         assertTrue(store.redemptionRoundActive(2));
 
-        // roundActive flag really flipped
-        assertEq(roundActiveBefore, 0); // it was false before we set it here
+        assertEq(roundActiveBefore, 0);
     }
 
-    /// @dev the “IDX supply is zero” guard should trigger if we try
-    ///      to burn *all* tokens in existence.
     function test_initiateRedemptionBatch_RevertsWhenSupplyZero() public {
-        // mint everything straight to SCA
         uint256 total = 100 ether;
         idx.mint(address(sca), total);
 
@@ -591,17 +580,14 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
     }
 
-    /// @dev full redemption flow:  batch → settle, payout, fee-dust
     function test_settleRedemption_HappyPath() public {
         uint256 idxAlice = 80 ether;
         uint256 idxBob = 20 ether;
         _createFullRedemptionRound(idxAlice, idxBob);
 
-        // run batch
         vm.prank(nexBot);
         sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
 
-        // prepare USDC inflow
         uint256 usdcBernx = 150_000 * ONE_USDC;
         uint256 usdcCr5 = 50_000 * ONE_USDC;
         usdc.mint(nexBot, usdcBernx);
@@ -619,13 +605,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         assertEq(usdc.balanceOf(alice), aliceShare);
         assertEq(usdc.balanceOf(bob), bobShare);
 
-        // round closed
         assertTrue(store.redemptionRoundCompleted(1));
         assertFalse(store.redemptionRoundActive(1));
     }
 
-    /// @dev make sure the “batch already started” branch still works
-    ///      now that we toggle the flag inside the function.
     function test_initiateRedemptionBatch_RevertIfAlreadyStarted() public {
         _createFullRedemptionRound(10 ether, 10 ether);
 
