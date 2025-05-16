@@ -30,7 +30,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     address public crypto5FactoryAddress;
     address public indexFactoryAddress;
     address public nexBot;
-    address public bernx;
+    address public bond;
 
     event Rescue(address indexed token, address indexed to, uint256 amount, uint256 indexed timestamp);
     event WithdrawnForPurchase(uint256 indexed roundId, uint256 indexed amount, uint256 indexed timestamp);
@@ -69,7 +69,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         nexBot = factoryStorage.nexBot();
         crypto5FactoryAddress = factoryStorage.crypto5FactoryAddress();
-        bernx = factoryStorage.bernx();
+        bond = factoryStorage.bond();
 
         // usdc = IERC20(_usdc);
     }
@@ -142,7 +142,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
-    function distributeTokens( /*uint256 mintAmount,*/ uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
+    function distributeTokens( /*uint256 mintAmount,*/ uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
         external
         onlyNexBot
     {
@@ -157,7 +157,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
 
-        uint256 mintAmount = calculateMintAmount(roundId, bernxPrice, crypto5Price);
+        uint256 mintAmount = calculateMintAmount(roundId, bondPrice, crypto5Price);
         indexToken.mint(address(this), mintAmount);
 
         uint256 distributed;
@@ -180,16 +180,16 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
     }
 
-    function settleRedemption(uint256 roundId, uint256 usdcFromBernx, uint256 usdcFromCr5) external onlyNexBot {
+    function settleRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromCr5) external onlyNexBot {
         if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
             revert RedemptionAmountIsZero();
         }
 
-        if (usdcFromBernx > 0) {
-            usdc.safeTransferFrom(msg.sender, address(this), usdcFromBernx);
+        if (usdcFromBond > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), usdcFromBond);
         }
 
-        uint256 totalUSDC = usdcFromBernx + usdcFromCr5;
+        uint256 totalUSDC = usdcFromBond + usdcFromCr5;
         require(totalUSDC > 0, "zero USDC received");
 
         address[] memory users = factoryStorage.addressesInRedemptionRound(roundId);
@@ -247,10 +247,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             }
         }
 
-        uint256 bernBal = IERC20(bernx).balanceOf(address(vault));
+        uint256 bernBal = IERC20(bond).balanceOf(address(vault));
         uint256 bernSlice = bernBal * pct1e18 / 1e18;
         if (bernSlice > 0) {
-            vault.withdrawFunds(bernx, nexBot, bernSlice);
+            vault.withdrawFunds(bond, nexBot, bernSlice);
         }
 
         uint256 c5Amount = IERC20(address(indexToken)).balanceOf(address(this));
@@ -264,16 +264,16 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
     }
 
-    function calculateMintAmount(uint256 roundId, uint256 bernxPrice, uint256 crypto5Price)
+    function calculateMintAmount(uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
         public
         view
         returns (uint256 mintAmount)
     {
         uint256 totalValue;
 
-        uint256 bernBal = IERC20(bernx).balanceOf(address(vault));
+        uint256 bernBal = IERC20(bond).balanceOf(address(vault));
         if (bernBal > 0) {
-            totalValue += (bernBal * bernxPrice) / 1e18;
+            totalValue += (bernBal * bondPrice) / 1e18;
         }
 
         uint256 totalComps = functionsOracle.totalCurrentList();

@@ -23,7 +23,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     StagingCustodyAccount public sca;
     IERC20 public usdc;
 
-    address public bernx;
+    address public bond;
     address public crypto5FactoryAddress;
     address public feeReceiver;
     uint256 public feeRate;
@@ -75,7 +75,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _nexBot,
         address _crypto5FactoryAddress,
         address _usdc,
-        address _bernx,
+        address _bond,
         bool _isMainnet
     ) external initializer {
         require(_indexToken != address(0), "Invalid _indexToken address");
@@ -86,7 +86,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         require(_nexBot != address(0), "Invalid _nexBot address");
         require(_crypto5FactoryAddress != address(0), "Invalid _crypto5FactoryAddress address");
         require(_usdc != address(0), "Invalid _usdc address");
-        require(_bernx != address(0), "Invalid _bernx address");
+        require(_bond != address(0), "Invalid _bond address");
 
         __Ownable_init(msg.sender);
 
@@ -96,7 +96,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         sca = StagingCustodyAccount(_stagingCustodyAccount);
         vault = Vault(_vault);
         usdc = IERC20(_usdc);
-        bernx = _bernx;
+        bond = _bond;
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBot;

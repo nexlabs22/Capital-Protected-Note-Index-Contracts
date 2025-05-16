@@ -24,7 +24,7 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
     }
 }
 
-contract MockBERNX is ERC20("Bernx", "BERNX") {
+contract MockBond is ERC20("Bond", "BND") {
     function mint(address t, uint256 a) external {
         _mint(t, a);
     }
@@ -70,7 +70,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     address bob = vm.addr(4);
 
     MockUSDC usdc;
-    MockBERNX bernx;
+    MockBond bond;
     MockIDXc5 idxc5;
     DummyCrypto5Factory cr5;
     IndexToken idx;
@@ -85,7 +85,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function setUp() public {
         usdc = new MockUSDC();
-        bernx = new MockBERNX();
+        bond = new MockBond();
         idxc5 = new MockIDXc5();
         cr5 = new DummyCrypto5Factory(address(idxc5));
 
@@ -110,7 +110,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         address[] memory comps = new address[](2);
         uint256[] memory shares = new uint256[](2);
-        comps[0] = address(bernx);
+        comps[0] = address(bond);
         shares[0] = 80e18;
         comps[1] = address(idxc5);
         shares[1] = 20e18;
@@ -127,7 +127,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
             nexBot,
             address(cr5),
             address(usdc),
-            address(bernx),
+            address(bond),
             false
         );
         store.setFeeReceiver(feeRec);
@@ -412,23 +412,23 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(usdc.balanceOf(nexBot), toBot);
 
         uint256 bernQty = 50_000 ether;
-        bernx.mint(address(sca), bernQty);
+        bond.mint(address(sca), bernQty);
 
         // uint256 mintQty = 1_000 ether;
-        // uint256 bernxPrice = 2e18;
+        // uint256 bondPrice = 2e18;
         // uint256 c5Price = 1e18;
         // vm.prank(nexBot);
-        // sca.distributeTokens(1, bernxPrice, c5Price);
+        // sca.distributeTokens(1, bondPrice, c5Price);
 
-        uint256 bernxPrice = 2e18; // 2 USD  (18-dec)
+        uint256 bondPrice = 2e18; // 2 USD  (18-dec)
         uint256 c5Price = 1e18; // 1 USD
-        uint256 expectedMint = sca.calculateMintAmount(1, bernxPrice, c5Price);
+        uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), mintQty);
         assertEq(idx.balanceOf(alice), expectedMint);
-        assertEq(bernx.balanceOf(address(vault)), bernQty);
+        assertEq(bond.balanceOf(address(vault)), bernQty);
         assertEq(idxc5.balanceOf(address(vault)), inAmt / 5);
 
         assertTrue(store.issuanceIsCompleted(1));
@@ -465,16 +465,16 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.prank(nexBot);
         sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
 
-        bernx.mint(address(sca), 77_000 ether);
+        bond.mint(address(sca), 77_000 ether);
 
         // uint256 mintQty = 1_000 ether;
-        // uint256 bernxPrice = 2e18;
+        // uint256 bondPrice = 2e18;
         // uint256 c5Price = 1e18;
-        uint256 bernxPrice = 2e18; // 2 USD
+        uint256 bondPrice = 2e18; // 2 USD
         uint256 c5Price = 1e18; // 1 USD
-        uint256 expectedMint = sca.calculateMintAmount(1, bernxPrice, c5Price);
+        uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), mintQty * aAmt / totalIn);
         // assertEq(idx.balanceOf(bob), mintQty * bAmt / totalIn);

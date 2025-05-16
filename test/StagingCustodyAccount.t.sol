@@ -22,7 +22,7 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
     }
 }
 
-contract MockBernx is ERC20("Bernx", "Bernx") {
+contract MockBond is ERC20("Bond", "BND") {
     function mint(address to, uint256 amt) external {
         _mint(to, amt);
     }
@@ -47,7 +47,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     address bob = vm.addr(11);
 
     MockUSDC usdc;
-    MockBernx bernx;
+    MockBond bond;
     IndexToken idx;
     TestFunctionsOracle oracle;
     IndexFactoryStorage store;
@@ -57,7 +57,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
     function setUp() public {
         usdc = new MockUSDC();
-        bernx = new MockBernx();
+        bond = new MockBond();
 
         {
             IndexToken impl = new IndexToken();
@@ -111,7 +111,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                         nexBot,
                         address(0xDEAD),
                         address(usdc),
-                        address(bernx),
+                        address(bond),
                         false
                     )
                 )
@@ -149,13 +149,13 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function testDistributeAndSettle() public {
-        uint256 bernxPrice = 2e18;
+        uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
 
-        uint256 mint = sca.calculateMintAmount(1, bernxPrice, c5Price);
+        uint256 mint = sca.calculateMintAmount(1, bondPrice, c5Price);
 
         vm.prank(nexBot);
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), 600 ether);
         // assertEq(idx.balanceOf(bob), 400 ether);
@@ -243,19 +243,19 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     function test_distributeTokens_FailWhenCallerIsNotNexBot() public {
         vm.startPrank(factory);
 
-        uint256 bernxPrice = 2e18;
+        uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.expectRevert("Caller is not the NEX bot");
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
         vm.stopPrank();
     }
 
     function test_distributeTokens_FailWhenRoundIdIsGreaterThanCurrentRoundId() public {
         vm.startPrank(nexBot);
-        uint256 bernxPrice = 2e18;
+        uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.expectRevert("Invalid roundId");
-        sca.distributeTokens(2, bernxPrice, c5Price);
+        sca.distributeTokens(2, bondPrice, c5Price);
 
         vm.stopPrank();
     }
@@ -318,13 +318,13 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         //     Vault(address(new ERC1967Proxy(address(vaultImpl), abi.encodeCall(Vault.initialize, (address(this))))));
 
         // usdc.mint(address(v), usdcQty);
-        // bernx.mint(address(v), bernQty);
+        // bond.mint(address(v), bernQty);
 
         // vm.store(address(store), bytes32(uint256(2)), bytes32(uint256(uint160(address(v)))));
 
         Vault v = Vault(store.vault()); // the vault we already deployed
         usdc.mint(address(v), usdcQty);
-        bernx.mint(address(v), bernQty);
+        bond.mint(address(v), bernQty);
     }
 
     function test_initiateRedemptionBatch_FailWhenNotOperator() public {
@@ -353,16 +353,16 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     store.setRedemptionRoundActive(1, true);
     //     vm.stopPrank();
 
-    //     uint256 usdcBernx = 150_000 * ONE_USDC;
-    //     usdc.mint(nexBot, usdcBernx);
+    //     uint256 usdcbond = 150_000 * ONE_USDC;
+    //     usdc.mint(nexBot, usdcbond);
 
     //     vm.startPrank(nexBot);
-    //     usdc.approve(address(sca), usdcBernx);
+    //     usdc.approve(address(sca), usdcbond);
     //     vm.stopPrank();
     //     vm.prank(nexBot);
-    //     sca.settleRedemption(1, usdcBernx, usdcCr5);
+    //     sca.settleRedemption(1, usdcbond, usdcCr5);
 
-    //     uint256 totalPaid = usdcBernx + usdcCr5;
+    //     uint256 totalPaid = usdcbond + usdcCr5;
 
     //     uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
     //     uint256 bobShare = totalPaid - aliceShare;
@@ -405,10 +405,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         store.undoIssuance(alice, 60_000 * ONE_USDC);
         store.undoIssuance(bob, 40_000 * ONE_USDC);
-        uint256 bernxPrice = 2e18;
+        uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.expectRevert("Nothing to distribute");
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
         vm.stopPrank();
     }
 
@@ -426,19 +426,19 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     uint256 idxBob = 20 ether;
     //     _bootstrapRedemptionRound(idxAlice, idxBob);
 
-    //     uint256 usdcBernx = 150_000 * ONE_USDC;
+    //     uint256 usdcbond = 150_000 * ONE_USDC;
     //     uint256 usdcCr5 = 50_000 * ONE_USDC;
-    //     usdc.mint(nexBot, usdcBernx);
+    //     usdc.mint(nexBot, usdcbond);
     //     usdc.mint(address(sca), usdcCr5);
 
     //     vm.startPrank(nexBot);
-    //     usdc.approve(address(sca), usdcBernx);
+    //     usdc.approve(address(sca), usdcbond);
     //     vm.expectRevert("batch not started or already settled");
-    //     sca.settleRedemption(1, usdcBernx, usdcCr5);
+    //     sca.settleRedemption(1, usdcbond, usdcCr5);
     //     vm.stopPrank();
     // }
 
-    // function test_settleRedemption_ElseBranch_usdcFromBernxZero() public {
+    // function test_settleRedemption_ElseBranch_usdcFrombondZero() public {
     //     uint256 idxAlice = 80 ether;
     //     uint256 idxBob = 20 ether;
     //     _bootstrapRedemptionRound(idxAlice, idxBob);
@@ -447,12 +447,12 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     store.setRedemptionRoundActive(1, true);
     //     vm.stopPrank();
 
-    //     uint256 usdcFromBernx = 0;
+    //     uint256 usdcFrombond = 0;
     //     uint256 usdcFromCr5 = 50_000 * ONE_USDC;
     //     usdc.mint(address(sca), usdcFromCr5);
 
     //     vm.startPrank(nexBot);
-    //     sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+    //     sca.settleRedemption(1, usdcFrombond, usdcFromCr5);
     //     vm.stopPrank();
 
     //     uint256 totalPaid = usdcFromCr5;
@@ -473,12 +473,12 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.setRedemptionRoundActive(1, true);
         vm.stopPrank();
 
-        uint256 usdcFromBernx = 0;
+        uint256 usdcFromBond = 0;
         uint256 usdcFromCr5 = 0;
 
         vm.startPrank(nexBot);
         vm.expectRevert("zero USDC received");
-        sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+        sca.settleRedemption(1, usdcFromBond, usdcFromCr5);
         vm.stopPrank();
     }
 
@@ -491,12 +491,12 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     store.setRedemptionRoundActive(1, true);
     //     vm.stopPrank();
 
-    //     uint256 usdcFromBernx = 0;
+    //     uint256 usdcFrombond = 0;
     //     uint256 usdcFromCr5 = 100_001 * ONE_USDC + 1;
     //     usdc.mint(address(sca), usdcFromCr5);
 
     //     vm.startPrank(nexBot);
-    //     sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+    //     sca.settleRedemption(1, usdcFrombond, usdcFromCr5);
     //     vm.stopPrank();
 
     //     uint256 totalPaid = usdcFromCr5;
@@ -574,17 +574,17 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     vm.prank(nexBot);
     //     sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
 
-    //     uint256 usdcBernx = 150_000 * ONE_USDC;
+    //     uint256 usdcbond = 150_000 * ONE_USDC;
     //     uint256 usdcCr5 = 50_000 * ONE_USDC;
-    //     usdc.mint(nexBot, usdcBernx);
+    //     usdc.mint(nexBot, usdcbond);
     //     usdc.mint(address(sca), usdcCr5);
 
     //     vm.startPrank(nexBot);
-    //     usdc.approve(address(sca), usdcBernx);
-    //     sca.settleRedemption(1, usdcBernx, usdcCr5);
+    //     usdc.approve(address(sca), usdcbond);
+    //     sca.settleRedemption(1, usdcbond, usdcCr5);
     //     vm.stopPrank();
 
-    //     uint256 totalPaid = usdcBernx + usdcCr5;
+    //     uint256 totalPaid = usdcbond + usdcCr5;
     //     uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
     //     uint256 bobShare = totalPaid - aliceShare;
 
@@ -641,10 +641,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.addIssuanceForCurrentRound(charlie, 0);
         vm.stopPrank();
 
-        uint256 bernxPrice = 2e18;
+        uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.prank(nexBot);
-        sca.distributeTokens(1, bernxPrice, c5Price);
+        sca.distributeTokens(1, bondPrice, c5Price);
 
         assertEq(idx.balanceOf(charlie), 0);
     }
@@ -670,18 +670,18 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.prank(factory);
         store.setRedemptionRoundActive(1, true);
 
-        uint256 usdcFromBernx = 100_000 * ONE_USDC;
+        uint256 usdcFromBond = 100_000 * ONE_USDC;
         uint256 usdcFromCr5 = 0;
-        usdc.mint(nexBot, usdcFromBernx);
+        usdc.mint(nexBot, usdcFromBond);
         usdc.mint(address(sca), usdcFromCr5);
 
         vm.startPrank(nexBot);
-        usdc.approve(address(sca), usdcFromBernx);
+        usdc.approve(address(sca), usdcFromBond);
 
-        sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+        sca.settleRedemption(1, usdcFromBond, usdcFromCr5);
         vm.stopPrank();
 
-        uint256 totalPaid = usdcFromBernx + usdcFromCr5;
+        uint256 totalPaid = usdcFromBond + usdcFromCr5;
         uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
         uint256 bobShare = totalPaid * idxBob / (idxAlice + idxBob);
         assertEq(usdc.balanceOf(alice), aliceShare);
@@ -698,14 +698,14 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     //     vm.prank(nexBot);
     //     sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
 
-    //     uint256 usdcFromBernx = 0;
+    //     uint256 usdcFrombond = 0;
     //     uint256 usdcFromCr5 = 100_001 * ONE_USDC + 1;
     //     usdc.mint(address(sca), usdcFromCr5);
 
     //     uint256 preFeeRecv = usdc.balanceOf(feeRecv);
 
     //     vm.prank(nexBot);
-    //     sca.settleRedemption(1, usdcFromBernx, usdcFromCr5);
+    //     sca.settleRedemption(1, usdcFrombond, usdcFromCr5);
 
     //     uint256 totalPaid = usdcFromCr5;
     //     uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
