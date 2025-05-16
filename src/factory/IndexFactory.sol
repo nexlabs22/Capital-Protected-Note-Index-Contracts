@@ -103,14 +103,14 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 amt = factoryStorage.issuanceInputAmount(nonce);
         require(amt > 0, "nothing to refund");
 
-        sca.refund(requester, amt);
         factoryStorage.undoIssuance(requester, amt);
         factoryStorage.setIssuanceCompleted(nonce, true);
+        sca.refund(requester, amt);
 
         emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
     }
 
-    function redemption(uint256 amount) external returns (uint256 nonce) {
+    function redemption(uint256 amount) external nonReentrant returns (uint256 nonce) {
         if (amount == 0) revert ZeroAmount();
         // require(amount > 0, "Invalid amount");
         factoryStorage.indexToken().transferFrom(msg.sender, address(sca), amount);
@@ -118,7 +118,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         nonce = ++redemptionNonce;
 
         factoryStorage.setRedemptionInputAmount(nonce, amount);
-        factoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
+        // factoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
         factoryStorage.addRedemptionForCurrentRound(msg.sender, amount);
         emit RequestRedemption(nonce, msg.sender, address(usdc), amount, 0, block.timestamp);
     }

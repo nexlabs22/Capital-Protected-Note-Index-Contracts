@@ -224,6 +224,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function initiateRedemptionBatch(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
         external
+        nonReentrant
         onlyOwnerOrOperator
     {
         uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);

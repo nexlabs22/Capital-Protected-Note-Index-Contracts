@@ -34,6 +34,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     mapping(uint256 => bool) public issuanceIsCompleted;
     mapping(uint256 => address) public issuanceRequesterByNonce;
+    mapping(uint256 => address) public redemptionRequesterByNonce;
     mapping(uint256 => uint256) public issuanceInputAmount;
     mapping(uint256 => uint256) public redemptionInputAmount;
     mapping(uint256 => uint256) public burnedTokenAmountByNonce;
@@ -217,6 +218,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         issuanceRequesterByNonce[nonce] = requester;
     }
 
+    function setRedemptionRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
+        redemptionRequesterByNonce[nonce] = requester;
+    }
+
     function undoIssuance(address account, uint256 amount) external onlyFactory {
         uint256 round = currentRoundId;
 
@@ -325,5 +330,5 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return (true, currentRoundId);
     }
 
-    uint256[45] private __gap;
+    uint256[50] private __gap;
 }
