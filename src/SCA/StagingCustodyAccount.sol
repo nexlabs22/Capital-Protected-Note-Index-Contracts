@@ -84,7 +84,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address[] calldata _tokenInPath,
         uint24[] calldata _tokenInFees
     ) public onlyOwnerOrOperator {
-        require(factoryStorage.roundIdIsActive(roundId), "Round is not active");
+        require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
         require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
         uint256 balance = usdc.balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
@@ -308,7 +308,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
         if (roundId <= 1) return true;
         for (uint256 i = 1; i < roundId; ++i) {
-            if (factoryStorage.roundIdIsActive(i)) {
+            if (factoryStorage.issuanceRoundActive(i)) {
                 return false;
             }
         }

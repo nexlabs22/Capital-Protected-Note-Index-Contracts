@@ -41,7 +41,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => address[]) private roundIdToAddresses;
     mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
     mapping(uint256 => uint256) public totalIssuanceByRound;
-    mapping(uint256 => bool) public roundIdIsActive;
+    // mapping(uint256 => bool) public roundIdIsActive;
+    mapping(uint256 => bool) public issuanceRoundActive;
     mapping(uint256 => mapping(address => uint256)) public redemptionAmountByRoundUser;
     mapping(uint256 => uint256) public totalRedemptionByRound;
     mapping(uint256 => bool) public redemptionRoundActive;
@@ -178,8 +179,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
-        if (!roundIdIsActive[issuanceRoundId]) {
-            roundIdIsActive[issuanceRoundId] = true;
+        if (!issuanceRoundActive[issuanceRoundId]) {
+            issuanceRoundActive[issuanceRoundId] = true;
         }
 
         if (issuanceAmountByRoundUser[issuanceRoundId][account] == 0) {
@@ -192,7 +193,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function addRedemptionForCurrentRound(address user, uint256 amount) external onlyFactory {
         uint256 roundId = redemptionRoundId;
 
-        if (!roundIdIsActive[roundId]) roundIdIsActive[roundId] = true;
+        if (!issuanceRoundActive[roundId]) issuanceRoundActive[roundId] = true;
 
         if (redemptionAmountByRoundUser[roundId][user] == 0) {
             redemptionAddrs[roundId].push(user);
@@ -241,7 +242,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 }
             }
             if (arr.length == 0) {
-                roundIdIsActive[round] = false;
+                issuanceRoundActive[round] = false;
             }
         }
     }
@@ -265,7 +266,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 }
             }
             if (arr.length == 0) {
-                roundIdIsActive[roundId] = false;
+                redemptionRoundActive[roundId] = false;
             }
         }
     }
@@ -280,7 +281,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         delete totalIssuanceByRound[roundId];
 
         issuanceIsCompleted[roundId] = true;
-        roundIdIsActive[roundId] = false;
+        issuanceRoundActive[roundId] = false;
 
         emit IssuanceSettled(roundId);
     }
@@ -308,13 +309,13 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 break;
             }
         }
-        if (arr.length == 0) roundIdIsActive[round] = false;
+        if (arr.length == 0) issuanceRoundActive[round] = false;
     }
 
     function nextProcessableRoundIdForIssuance() external view returns (uint256) {
         uint256 id = issuanceRoundId;
         for (uint256 i = 1; i < id; ++i) {
-            if (roundIdIsActive[i]) {
+            if (issuanceRoundActive[i]) {
                 revert UnsettledRound(i);
             }
         }
@@ -333,7 +334,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function currentIssuanceRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
         for (uint256 i = 1; i < issuanceRoundId; ++i) {
-            if (roundIdIsActive[i]) {
+            if (issuanceRoundActive[i]) {
                 return (false, i);
             }
         }

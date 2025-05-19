@@ -505,7 +505,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.addIssuanceForCurrentRound(bob, 200);
         vm.stopPrank();
 
-        assertTrue(store.roundIdIsActive(1));
+        assertTrue(store.issuanceRoundActive(1));
         assertEq(store.issuanceRoundId(), 2);
 
         vm.startPrank(nexBot);

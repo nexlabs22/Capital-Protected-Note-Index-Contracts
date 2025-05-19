@@ -361,7 +361,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
         assertEq(store.issuanceAmountByRoundUser(1, bob), 0);
         assertEq(store.totalIssuanceByRound(1), 0);
-        assertEq(store.roundIdIsActive(1), false);
+        assertEq(store.issuanceRoundActive(1), false);
     }
 
     function test_undoRedemption_FailWhenSenderIsNotFactory() public {

@@ -354,7 +354,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(store.issuanceAmountByRoundUser(1, alice), pureAmount);
         assertEq(store.issuanceInputAmount(n), pureAmount);
         assertEq(store.issuanceRequesterByNonce(n), alice);
-        assertEq(store.roundIdIsActive(1), true);
+        assertEq(store.issuanceRoundActive(1), true);
     }
 
     function testIssuance_feeChargedExactly() public {
@@ -396,7 +396,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         assertTrue(store.issuanceIsCompleted(nonce));
         assertEq(store.totalIssuanceByRound(1), 0);
-        assertEq(store.roundIdIsActive(1), false);
+        assertEq(store.issuanceRoundActive(1), false);
     }
 
     function testFullIssuanceFlow_Single() public {
