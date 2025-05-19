@@ -664,7 +664,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.prank(factory);
         store.increaseCurrentRoundId();
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("UnsettledRound(uint256)")), 1));
-        store.nextProcessableRoundId();
+        store.nextProcessableRoundIdForIssuance();
     }
 
     function test_nextProcessableRoundId_returnsCurrentRoundIdWhenNoUnsettledRounds() public {
@@ -672,7 +672,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.increaseCurrentRoundId();
         vm.prank(factory);
         store.increaseCurrentRoundId();
-        uint256 nextId = store.nextProcessableRoundId();
+        uint256 nextId = store.nextProcessableRoundIdForIssuance();
         assertEq(nextId, 3);
     }
 }

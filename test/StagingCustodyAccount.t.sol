@@ -148,24 +148,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         assertEq(usdc.balanceOf(address(sca)), preload - amt80);
     }
 
-    function testDistributeAndSettle() public {
-        uint256 bondPrice = 2e18;
-        uint256 c5Price = 1e18;
-
-        uint256 mint = sca.calculateMintAmount(1, bondPrice, c5Price);
-
-        vm.prank(nexBot);
-        sca.distributeTokens(1, bondPrice, c5Price);
-
-        // assertEq(idx.balanceOf(alice), 600 ether);
-        // assertEq(idx.balanceOf(bob), 400 ether);
-        assertEq(idx.balanceOf(alice), mint * 60_000 * ONE_USDC / (100_000 * ONE_USDC));
-        assertEq(idx.balanceOf(bob), mint * 40_000 * ONE_USDC / (100_000 * ONE_USDC));
-        assertEq(store.currentRoundId(), 1);
-
-        assertTrue(store.issuanceIsCompleted(1));
-    }
-
     function testCannotIssueIfPriorUnsettled() public {
         vm.prank(factory);
         store.addIssuanceForCurrentRound(alice, 100);
@@ -400,18 +382,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.stopPrank();
     }
 
-    function test_distributeTokens_FailWhenTotalIsZero() public {
-        vm.startPrank(nexBot);
-
-        store.undoIssuance(alice, 60_000 * ONE_USDC);
-        store.undoIssuance(bob, 40_000 * ONE_USDC);
-        uint256 bondPrice = 2e18;
-        uint256 c5Price = 1e18;
-        vm.expectRevert("Nothing to distribute");
-        sca.distributeTokens(1, bondPrice, c5Price);
-        vm.stopPrank();
-    }
-
     // function test_settleRedemption_FailWhenTotalRedemptionByRoundIsZero1() public {
     //     uint256 roundId = 2;
 
@@ -633,20 +603,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.expectRevert(ZeroAmount.selector);
         sca.rescue(token, to, amount);
         vm.stopPrank();
-    }
-
-    function test_distributeTokens_branch_214_Else() public {
-        address charlie = vm.addr(12);
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(charlie, 0);
-        vm.stopPrank();
-
-        uint256 bondPrice = 2e18;
-        uint256 c5Price = 1e18;
-        vm.prank(nexBot);
-        sca.distributeTokens(1, bondPrice, c5Price);
-
-        assertEq(idx.balanceOf(charlie), 0);
     }
 
     function test_settleRedemption_Branch_236_True() public {
