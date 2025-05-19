@@ -430,7 +430,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 c5Price = 1e18;
         // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.distributeTokens(1, bondPrice, c5Price);
+        sca.settleIssuance(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
@@ -479,7 +479,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 c5Price = 1e18;
         // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.distributeTokens(1, bondPrice, c5Price);
+        sca.settleIssuance(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), expectedMint * pureAAmount / totalIn);
         // assertEq(idx.balanceOf(bob), expectedMint * pureBAmount / totalIn);

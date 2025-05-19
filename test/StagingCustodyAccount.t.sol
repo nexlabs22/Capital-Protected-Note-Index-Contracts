@@ -228,7 +228,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.expectRevert("Caller is not the NEX bot");
-        sca.distributeTokens(1, bondPrice, c5Price);
+        sca.settleIssuance(1, bondPrice, c5Price);
         vm.stopPrank();
     }
 
@@ -237,7 +237,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         vm.expectRevert("Invalid roundId");
-        sca.distributeTokens(2, bondPrice, c5Price);
+        sca.settleIssuance(2, bondPrice, c5Price);
 
         vm.stopPrank();
     }

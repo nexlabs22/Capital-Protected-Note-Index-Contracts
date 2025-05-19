@@ -112,7 +112,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function redemption(uint256 amount) external nonReentrant returns (uint256 nonce) {
         if (amount == 0) revert ZeroAmount();
-        // require(amount > 0, "Invalid amount");
         factoryStorage.indexToken().transferFrom(msg.sender, address(sca), amount);
 
         nonce = ++redemptionNonce;

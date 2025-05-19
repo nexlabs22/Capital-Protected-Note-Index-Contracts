@@ -89,22 +89,19 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 balance = usdc.balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
-        // for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
-        //     address tokenAddress = functionsOracle.currentList(i);
-        //     uint256 amount = balance * functionsOracle.tokenCurrentMarketShare(tokenAddress) / 100e18;
-        // }
+        factoryStorage.setRedemptionRoundActive(roundId, false);
 
         uint256 amount20 = (balance * 20) / 100;
         uint256 amount80 = balance - amount20;
         issuanceCrypto5(amount20, _tokenInPath, _tokenInFees);
         withdrawForPurchase(roundId, amount80);
         factory.increaseCurrentRoundId();
+        factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
     }
 
     function withdrawForPurchase(uint256 roundId, uint256 amount) public onlyOwnerOrOperator nonReentrant {
         require(factoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
         if (amount == 0) revert ZeroAmount();
-        // require(amount > 0, "zero amount");
 
         IERC20(usdc).safeTransfer(nexBot, amount);
         emit WithdrawnForPurchase(roundId, amount, block.timestamp);
@@ -148,7 +145,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
-    function distributeTokens(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
+    function settleIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
         require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
 
         uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
@@ -307,27 +304,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 deltaValue = newValue - oldValue;
         mintAmount = (supply * deltaValue) / oldValue;
     }
-
-    // function calculateMintAmount(uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
-    //     public
-    //     view
-    //     returns (uint256 mintAmount)
-    // {
-    //     uint256 totalValue = getPortfolioValue(bondPrice, crypto5Price);
-
-    //     uint256 usdcRaised = factoryStorage.totalIssuanceByRound(roundId);
-    //     uint256 cashUSD = usdcRaised * 1e12;
-
-    //     uint256 supply = indexToken.totalSupply();
-
-    //     if (supply == 0 || totalValue == 0) {
-    //         mintAmount = cashUSD;
-    //     } else {
-    //         //     price = oldValue / oldSupply
-    //         //  →  Δsupply = cashUSD * oldSupply / oldValue
-    //         mintAmount = (cashUSD * supply) / totalValue;
-    //     }
-    // }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
         if (roundId <= 1) return true;
