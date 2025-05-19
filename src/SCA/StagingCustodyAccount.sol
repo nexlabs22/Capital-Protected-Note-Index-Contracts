@@ -148,23 +148,25 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
-    function distributeTokens( /*uint256 mintAmount,*/ uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
-        external
-        onlyNexBot
-    {
+    function distributeTokens(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
         require(roundId <= factoryStorage.currentRoundId(), "Invalid roundId");
+
+        uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
+
         for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
             address tokenAddress = functionsOracle.currentList(i);
             uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
             IERC20(tokenAddress).safeTransfer(address(factoryStorage.vault()), balance);
         }
 
+        uint256 newValue = getPortfolioValue(bondPrice, crypto5Price);
+
+        uint256 mintAmount = calculateMintAmount(oldValue, newValue);
+        if (mintAmount > 0) indexToken.mint(address(this), mintAmount);
+
         address[] memory addrs = factoryStorage.addressesInRound(roundId);
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
-
-        uint256 mintAmount = calculateMintAmount(roundId, bondPrice, crypto5Price);
-        indexToken.mint(address(this), mintAmount);
 
         uint256 distributed;
         for (uint256 i = 0; i < addrs.length; i++) {
@@ -271,42 +273,61 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
     }
 
-    function calculateMintAmount(uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
-        public
-        view
-        returns (uint256 mintAmount)
-    {
+    function getPortfolioValue(uint256 bondPrice, uint256 crypto5Price) public view returns (uint256) {
         uint256 totalValue;
 
-        uint256 bernBal = IERC20(bond).balanceOf(address(vault));
-        if (bernBal > 0) {
-            totalValue += (bernBal * bondPrice) / 1e18;
+        uint256 bondBalance = IERC20(bond).balanceOf(address(vault));
+        if (bondBalance > 0) {
+            totalValue += (bondBalance * bondPrice) / 1e18;
         }
 
-        uint256 totalComps = functionsOracle.totalCurrentList();
-        if (totalComps > 1) {
-            address idxc5 = functionsOracle.currentList(1);
-            if (idxc5 != address(0)) {
-                uint256 c5Bal = IERC20(idxc5).balanceOf(address(vault));
-                if (c5Bal != 0) {
-                    totalValue += (c5Bal * crypto5Price) / 1e18;
+        uint256 totalToken = functionsOracle.totalCurrentList();
+        if (totalToken > 1) {
+            address Crypto5Token = functionsOracle.currentList(1);
+            if (Crypto5Token != address(0)) {
+                uint256 Crypto5Balance = IERC20(Crypto5Token).balanceOf(address(vault));
+                if (Crypto5Balance != 0) {
+                    totalValue += (Crypto5Balance * crypto5Price) / 1e18;
                 }
             }
         }
 
-        uint256 usdcRaised = factoryStorage.totalIssuanceByRound(roundId);
-        uint256 cashUSD = usdcRaised * 1e12;
+        return totalValue;
+    }
+
+    function calculateMintAmount(uint256 oldValue, uint256 newValue) public view returns (uint256 mintAmount) {
+        require(newValue > oldValue, "no NAV increase");
 
         uint256 supply = indexToken.totalSupply();
 
-        if (supply == 0 || totalValue == 0) {
-            mintAmount = cashUSD;
-        } else {
-            //     price = oldValue / oldSupply
-            //  →  Δsupply = cashUSD * oldSupply / oldValue
-            mintAmount = (cashUSD * supply) / totalValue;
+        if (supply == 0 || oldValue == 0) {
+            return newValue;
         }
+
+        uint256 deltaValue = newValue - oldValue;
+        mintAmount = (supply * deltaValue) / oldValue;
     }
+
+    // function calculateMintAmount(uint256 roundId, uint256 bondPrice, uint256 crypto5Price)
+    //     public
+    //     view
+    //     returns (uint256 mintAmount)
+    // {
+    //     uint256 totalValue = getPortfolioValue(bondPrice, crypto5Price);
+
+    //     uint256 usdcRaised = factoryStorage.totalIssuanceByRound(roundId);
+    //     uint256 cashUSD = usdcRaised * 1e12;
+
+    //     uint256 supply = indexToken.totalSupply();
+
+    //     if (supply == 0 || totalValue == 0) {
+    //         mintAmount = cashUSD;
+    //     } else {
+    //         //     price = oldValue / oldSupply
+    //         //  →  Δsupply = cashUSD * oldSupply / oldValue
+    //         mintAmount = (cashUSD * supply) / totalValue;
+    //     }
+    // }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
         if (roundId <= 1) return true;

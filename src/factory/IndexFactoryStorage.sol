@@ -311,7 +311,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         if (arr.length == 0) roundIdIsActive[round] = false;
     }
 
-    function nextProcessableRoundId() external view returns (uint256) {
+    function nextProcessableRoundIdForIssuance() external view returns (uint256) {
         uint256 id = currentRoundId;
         for (uint256 i = 1; i < id; ++i) {
             if (roundIdIsActive[i]) {
@@ -321,13 +321,32 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return id;
     }
 
-    function currentRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
+    function nextProcessableRoundIdForRedemption() external view returns (uint256) {
+        uint256 id = redemptionRoundId;
+        for (uint256 i = 1; i < id; ++i) {
+            if (redemptionRoundActive[i]) {
+                revert UnsettledRound(i);
+            }
+        }
+        return id;
+    }
+
+    function currentIssuanceRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
         for (uint256 i = 1; i < currentRoundId; ++i) {
             if (roundIdIsActive[i]) {
                 return (false, i);
             }
         }
         return (true, currentRoundId);
+    }
+
+    function currentRedemptionRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
+        for (uint256 i = 1; i < redemptionRoundId; ++i) {
+            if (redemptionRoundActive[i]) {
+                return (false, i);
+            }
+        }
+        return (true, redemptionRoundId);
     }
 
     uint256[50] private __gap;
