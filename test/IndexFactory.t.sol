@@ -228,7 +228,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function test_increaseCurrentRoundId_SuccessfulIncreaseCurrentRoundId() public {
         vm.prank(address(this));
         factory.increaseCurrentRoundId();
-        assertEq(store.currentRoundId(), 2);
+        assertEq(store.issuanceRoundId(), 2);
     }
 
     function test_redemption_FailWhenAmountIsInvalid() public {

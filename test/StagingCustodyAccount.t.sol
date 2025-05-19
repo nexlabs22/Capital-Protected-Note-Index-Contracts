@@ -500,13 +500,13 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.startPrank(factory);
         store.addIssuanceForCurrentRound(alice, 100);
 
-        store.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
 
         store.addIssuanceForCurrentRound(bob, 200);
         vm.stopPrank();
 
         assertTrue(store.roundIdIsActive(1));
-        assertEq(store.currentRoundId(), 2);
+        assertEq(store.issuanceRoundId(), 2);
 
         vm.startPrank(nexBot);
         vm.expectRevert("A previous round is still unsettled");

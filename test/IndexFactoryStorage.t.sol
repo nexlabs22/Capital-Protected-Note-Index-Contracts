@@ -113,7 +113,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.prank(nexBot);
         store.settleIssuance(1);
 
-        assertEq(store.currentRoundId(), 1);
+        assertEq(store.issuanceRoundId(), 1);
         assertEq(store.totalIssuanceByRound(1), 0);
         assertEq(store.addressesInRound(1).length, 0);
         assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
@@ -253,7 +253,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
     function test_increaseCurrentRoundId_FailWhenSenderIsNotFactory() public {
         vm.expectRevert("Caller is not a factory contract");
-        store.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
     }
 
     function test_addIssuanceForCurrentRound_FailWhenSenderIsNotFactory() public {
@@ -471,8 +471,8 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
     function test_increaseCurrentRoundId_Success() public {
         vm.prank(factory);
-        store.increaseCurrentRoundId();
-        assertEq(store.currentRoundId(), 2);
+        store.increaseIssuanceRoundId();
+        assertEq(store.issuanceRoundId(), 2);
     }
 
     function test_initialize_FailWhenIndexTokenAddressIsInvalid() public {
@@ -662,16 +662,16 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.addIssuanceForCurrentRound(alice, 100);
 
         vm.prank(factory);
-        store.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("UnsettledRound(uint256)")), 1));
         store.nextProcessableRoundIdForIssuance();
     }
 
     function test_nextProcessableRoundId_returnsCurrentRoundIdWhenNoUnsettledRounds() public {
         vm.prank(factory);
-        store.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
         vm.prank(factory);
-        store.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
         uint256 nextId = store.nextProcessableRoundIdForIssuance();
         assertEq(nextId, 3);
     }

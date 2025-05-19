@@ -124,6 +124,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {
-        factoryStorage.increaseCurrentRoundId();
+        factoryStorage.increaseIssuanceRoundId();
     }
 }

@@ -27,7 +27,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     address public crypto5FactoryAddress;
     address public feeReceiver;
     uint8 public feeRate;
-    uint256 public currentRoundId;
+    uint256 public issuanceRoundId;
     uint256 public redemptionRoundId;
     address public nexBot;
     bool public isMainnet;
@@ -104,7 +104,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBot;
         isMainnet = _isMainnet;
-        currentRoundId = 1;
+        issuanceRoundId = 1;
         redemptionRoundId = 1;
         feeRate = 10;
         feeReceiver = msg.sender;
@@ -165,8 +165,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         issuanceIsCompleted[nonce] = flag;
     }
 
-    function increaseCurrentRoundId() external onlyFactory {
-        currentRoundId++;
+    function increaseIssuanceRoundId() external onlyFactory {
+        issuanceRoundId++;
     }
 
     function increaseRedemptionRoundId() external onlyFactory {
@@ -178,15 +178,15 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
-        if (!roundIdIsActive[currentRoundId]) {
-            roundIdIsActive[currentRoundId] = true;
+        if (!roundIdIsActive[issuanceRoundId]) {
+            roundIdIsActive[issuanceRoundId] = true;
         }
 
-        if (issuanceAmountByRoundUser[currentRoundId][account] == 0) {
-            roundIdToAddresses[currentRoundId].push(account);
+        if (issuanceAmountByRoundUser[issuanceRoundId][account] == 0) {
+            roundIdToAddresses[issuanceRoundId].push(account);
         }
-        issuanceAmountByRoundUser[currentRoundId][account] += amount;
-        totalIssuanceByRound[currentRoundId] += amount;
+        issuanceAmountByRoundUser[issuanceRoundId][account] += amount;
+        totalIssuanceByRound[issuanceRoundId] += amount;
     }
 
     function addRedemptionForCurrentRound(address user, uint256 amount) external onlyFactory {
@@ -223,7 +223,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function undoIssuance(address account, uint256 amount) external onlyFactory {
-        uint256 round = currentRoundId;
+        uint256 round = issuanceRoundId;
 
         uint256 before = issuanceAmountByRoundUser[round][account];
         require(before >= amount && amount > 0, "bad amount");
@@ -247,7 +247,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function undoRedemption(address user, uint256 amount) external onlyFactory {
-        // uint256 roundId = currentRoundId;
+        // uint256 roundId = issuanceRoundId;
         uint256 roundId = redemptionRoundId;
         uint256 before = redemptionAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
@@ -312,7 +312,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function nextProcessableRoundIdForIssuance() external view returns (uint256) {
-        uint256 id = currentRoundId;
+        uint256 id = issuanceRoundId;
         for (uint256 i = 1; i < id; ++i) {
             if (roundIdIsActive[i]) {
                 revert UnsettledRound(i);
@@ -332,12 +332,12 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function currentIssuanceRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {
-        for (uint256 i = 1; i < currentRoundId; ++i) {
+        for (uint256 i = 1; i < issuanceRoundId; ++i) {
             if (roundIdIsActive[i]) {
                 return (false, i);
             }
         }
-        return (true, currentRoundId);
+        return (true, issuanceRoundId);
     }
 
     function currentRedemptionRoundWithStatus() external view returns (bool allSettled, uint256 roundId) {

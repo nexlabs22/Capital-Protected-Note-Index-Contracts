@@ -149,7 +149,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function distributeTokens(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
-        require(roundId <= factoryStorage.currentRoundId(), "Invalid roundId");
+        require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
 
         uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
 
