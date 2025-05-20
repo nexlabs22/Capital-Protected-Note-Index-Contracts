@@ -52,8 +52,8 @@ contract DummyCrypto5Factory {
 }
 
 contract TestFunctionsOracle is FunctionsOracle {
-    function seed(address[] calldata comps, uint256[] calldata shares) external {
-        _initData(comps, shares);
+    function seed(uint8[] calldata assetTypes, address[] calldata comps, uint256[] calldata shares) external {
+        _initData(assetTypes, comps, shares);
     }
 }
 
@@ -114,11 +114,14 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         address[] memory comps = new address[](2);
         uint256[] memory shares = new uint256[](2);
+        uint8[] memory types = new uint8[](2);
         comps[0] = address(bond);
         shares[0] = 80e18;
+        types[0] = 0;
         comps[1] = address(idxc5);
         shares[1] = 20e18;
-        oracle.seed(comps, shares);
+        types[1] = 1;
+        oracle.seed(types, comps, shares);
 
         link = new LinkToken();
 
@@ -266,20 +269,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.issuanceIndexToken(0);
     }
 
-    // function testCancelIssuance_HappyPath() public {
-    //     uint256 amt = 5_000 * ONE_USDC;
-    //     vm.prank(alice);
-    //     uint256 n = factory.issuanceIndexToken(amt);
-
-    //     uint256 balBefore = usdc.balanceOf(alice);
-    //     vm.prank(alice);
-    //     factory.cancelIssuance(n);
-    //     uint256 balAfter = usdc.balanceOf(alice);
-
-    //     assertEq(balAfter - balBefore, amt, "refund missing");
-    //     assertTrue(store.issuanceIsCompleted(n));
-    // }
-
     function _mintAndApproveIdx(address user, uint256 qty) internal {
         idx.mint(user, qty);
         vm.prank(user);
@@ -288,7 +277,9 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testRedemption_HappyPath() public {
         uint256 aliceIdx = 80 ether;
+        uint256 pureAliceAmount = aliceIdx - (aliceIdx * 10) / 10000;
         uint256 bobIdx = 20 ether;
+        uint256 pureBobAmount = bobIdx - (bobIdx * 10) / 10000;
 
         _mintAndApproveIdx(alice, aliceIdx);
         _mintAndApproveIdx(bob, bobIdx);
@@ -302,11 +293,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(n2, 2);
         assertEq(factory.redemptionNonce(), 2);
 
-        assertEq(idx.balanceOf(address(sca)), aliceIdx + bobIdx);
+        assertEq(idx.balanceOf(address(sca)), pureAliceAmount + pureBobAmount);
 
-        assertEq(store.totalRedemptionByRound(1), aliceIdx + bobIdx);
-        assertEq(store.redemptionAmountByRoundUser(1, alice), aliceIdx);
-        assertEq(store.redemptionAmountByRoundUser(1, bob), bobIdx);
+        assertEq(store.totalRedemptionByRound(1), pureAliceAmount + pureBobAmount);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), pureAliceAmount);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), pureBobAmount);
     }
 
     function testRedemption_revertsOnZero() public {
@@ -430,7 +421,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 c5Price = 1e18;
         // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.settleIssuance(1, bondPrice, c5Price);
+        sca.completeIssuance(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
@@ -479,7 +470,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 c5Price = 1e18;
         // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
-        sca.settleIssuance(1, bondPrice, c5Price);
+        sca.completeIssuance(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), expectedMint * pureAAmount / totalIn);
         // assertEq(idx.balanceOf(bob), expectedMint * pureBAmount / totalIn);

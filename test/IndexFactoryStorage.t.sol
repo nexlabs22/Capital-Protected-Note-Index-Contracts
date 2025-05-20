@@ -675,4 +675,220 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         uint256 nextId = store.nextProcessableRoundIdForIssuance();
         assertEq(nextId, 3);
     }
+
+    function test_initialize_FailWhenCrypto5FactoryAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexToken implIdx = new IndexToken();
+        ERC1967Proxy proxyIdx = new ERC1967Proxy(
+            address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
+        );
+        IndexToken idx = IndexToken(address(proxyIdx));
+        StagingCustodyAccount sca =
+            StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
+        MockUSDC usdc = new MockUSDC();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid _crypto5FactoryAddress address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(sca),
+                    vault,
+                    nexBot,
+                    address(0),
+                    address(usdc),
+                    bond,
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenUSDCAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexToken implIdx = new IndexToken();
+        ERC1967Proxy proxyIdx = new ERC1967Proxy(
+            address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
+        );
+        IndexToken idx = IndexToken(address(proxyIdx));
+        StagingCustodyAccount sca =
+            StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid _usdc address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(sca),
+                    vault,
+                    nexBot,
+                    address(0xDEAD),
+                    address(0),
+                    bond,
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_initialize_FailWhenBondAddressIsInvalid() public {
+        vm.startPrank(owner);
+        DummyOracle oracle = new DummyOracle();
+        IndexToken implIdx = new IndexToken();
+        ERC1967Proxy proxyIdx = new ERC1967Proxy(
+            address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
+        );
+        IndexToken idx = IndexToken(address(proxyIdx));
+        StagingCustodyAccount sca =
+            StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
+        MockUSDC usdc = new MockUSDC();
+        IndexFactoryStorage impl = new IndexFactoryStorage();
+        vm.expectRevert("Invalid _bond address");
+        new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(oracle),
+                    address(sca),
+                    vault,
+                    nexBot,
+                    address(0xDEAD),
+                    address(usdc),
+                    address(0),
+                    false
+                )
+            )
+        );
+        vm.stopPrank();
+    }
+
+    function test_setBondAmountByRoundId_RevertOnZeroAmount() public {
+        vm.startPrank(factory);
+        vm.expectRevert(ZeroAmount.selector);
+        store.setBondAmountByRoundId(1, 0);
+        vm.stopPrank();
+    }
+
+    function test_setCrypto5AmountByRoundId_ZeroAmountReverts() public {
+        uint256 roundId = 1;
+        uint256 zeroAmount = 0;
+        vm.prank(factory);
+        vm.expectRevert(ZeroAmount.selector);
+        store.setCrypto5AmountByRoundId(roundId, zeroAmount);
+    }
+
+    function test_increaseRedemptionRoundId_SuccessWhenSenderIsFactory() public {
+        uint256 before = store.redemptionRoundId();
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+        assertEq(store.redemptionRoundId(), before + 1);
+    }
+
+    function test_setRedemptionRequesterByNonce_FailsWhenNotFactoryNexBotOrSCA() public {
+        uint256 nonce = 42;
+        address requester = address(0xBEEF);
+        address notAllowed = address(0xDEAD);
+        vm.prank(notAllowed);
+        vm.expectRevert("Caller is not a factory contract");
+        store.setRedemptionRequesterByNonce(nonce, requester);
+    }
+
+    function test_undoRedemption_ElseBranchInPruneLoop() public {
+        address charlie = vm.addr(6);
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.addRedemptionForCurrentRound(bob, 50);
+        store.addRedemptionForCurrentRound(charlie, 25);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoRedemption(bob, 50);
+        vm.stopPrank();
+
+        address[] memory list = store.addressesInRedemptionRound(1);
+        assertEq(list.length, 2);
+        assertEq(list[0], alice);
+        assertEq(list[1], charlie);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
+        assertEq(store.totalRedemptionByRound(1), 125);
+    }
+
+    function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero_LastAddress() public {
+        address charlie = vm.addr(6);
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.addRedemptionForCurrentRound(bob, 50);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoRedemption(alice, 100);
+        vm.stopPrank();
+
+        vm.startPrank(factory);
+        store.undoRedemption(bob, 50);
+        vm.stopPrank();
+
+        address[] memory list = store.addressesInRedemptionRound(1);
+        assertEq(list.length, 0);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
+        assertEq(store.totalRedemptionByRound(1), 0);
+        assertEq(store.redemptionRoundActive(1), false);
+    }
+
+    function test_nextProcessableRoundIdForRedemption_revertsOnUnsettledRound() public {
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, 100);
+        store.setRedemptionRoundActive(1, true);
+        store.increaseRedemptionRoundId();
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("UnsettledRound(uint256)")), 1));
+        store.nextProcessableRoundIdForRedemption();
+    }
+
+    function test_nextProcessableRoundIdForRedemption_ElseBranch() public {
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+        uint256 nextId = store.nextProcessableRoundIdForRedemption();
+        assertEq(nextId, 3, "Should return current redemptionRoundId");
+    }
+
+    function test_currentIssuanceRoundWithStatus_ElseBranch() public {
+        vm.prank(factory);
+        store.increaseIssuanceRoundId();
+        vm.prank(factory);
+        store.increaseIssuanceRoundId();
+
+        (bool allSettled, uint256 roundId) = store.currentIssuanceRoundWithStatus();
+        assertTrue(allSettled, "Should be all settled");
+        assertEq(roundId, 3, "Should return current issuanceRoundId");
+    }
+
+    function test_currentRedemptionRoundWithStatus_ElseBranch() public {
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+
+        (bool allSettled, uint256 roundId) = store.currentRedemptionRoundWithStatus();
+        assertTrue(allSettled);
+        assertEq(roundId, 3);
+    }
 }

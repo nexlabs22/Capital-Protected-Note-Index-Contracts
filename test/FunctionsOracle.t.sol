@@ -6,8 +6,8 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import "../src/factory/FunctionsOracle.sol";
 
 contract OracleHarness is FunctionsOracle {
-    function exposed_initData(address[] calldata t, uint256[] calldata s) external {
-        _initData(t, s);
+    function exposed_initData(uint8[] memory types, address[] calldata tokens, uint256[] calldata shares) external {
+        _initData(types, tokens, shares);
     }
 }
 
@@ -68,15 +68,18 @@ contract FunctionsOracleProxyTest is Test {
     }
 
     function testInitDataAndUpdate() public {
-        address[] memory t = new address[](2);
-        uint256[] memory s = new uint256[](2);
-        t[0] = tokenA;
-        t[1] = tokenB;
-        s[0] = 70e18;
-        s[1] = 30e18;
+        address[] memory tokens = new address[](2);
+        uint256[] memory shares = new uint256[](2);
+        uint8[] memory types = new uint8[](2);
+        tokens[0] = tokenA;
+        tokens[1] = tokenB;
+        shares[0] = 70e18;
+        shares[1] = 30e18;
+        types[1] = 0;
+        types[1] = 1;
 
         vm.prank(owner);
-        oracle.exposed_initData(t, s);
+        oracle.exposed_initData(types, tokens, shares);
 
         assertEq(oracle.oracleList(0), tokenA);
         assertEq(oracle.tokenOracleMarketShare(tokenB), 30e18);
@@ -125,15 +128,18 @@ contract FunctionsOracleProxyTest is Test {
     }
 
     function test_initData_SuccessfulInitData() public {
-        address[] memory t = new address[](2);
-        uint256[] memory s = new uint256[](2);
-        t[0] = tokenA;
-        t[1] = tokenB;
-        s[0] = 70e18;
-        s[1] = 30e18;
+        address[] memory tokens = new address[](2);
+        uint256[] memory shares = new uint256[](2);
+        uint8[] memory types = new uint8[](2);
+        tokens[0] = tokenA;
+        tokens[1] = tokenB;
+        shares[0] = 70e18;
+        shares[1] = 30e18;
+        types[1] = 0;
+        types[1] = 1;
 
         vm.prank(owner);
-        oracle.exposed_initData(t, s);
+        oracle.exposed_initData(types, tokens, shares);
 
         assertEq(oracle.oracleList(0), tokenA);
         assertEq(oracle.tokenOracleMarketShare(tokenB), 30e18);
@@ -143,7 +149,7 @@ contract FunctionsOracleProxyTest is Test {
         assertEq(oracle.totalCurrentList(), 2);
 
         vm.prank(owner);
-        oracle.exposed_initData(t, s);
+        oracle.exposed_initData(types, tokens, shares);
 
         assertEq(oracle.oracleList(0), tokenA);
         assertEq(oracle.tokenOracleMarketShare(tokenB), 30e18);
