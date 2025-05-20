@@ -95,6 +95,20 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         return issuanceNonce;
     }
 
+    function redemption(uint256 _amount) external nonReentrant returns (uint256 nonce) {
+        if (_amount == 0) revert ZeroAmount();
+        uint256 feeAmount = FeeCalculation.calculateFee(_amount, factoryStorage.feeRate());
+        uint256 pureRedemptionAmount = _amount - feeAmount;
+        IERC20(factoryStorage.indexToken()).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
+        factoryStorage.indexToken().transferFrom(msg.sender, address(sca), pureRedemptionAmount);
+
+        nonce = ++redemptionNonce;
+
+        factoryStorage.setRedemptionInputAmount(nonce, pureRedemptionAmount);
+        factoryStorage.addRedemptionForCurrentRound(msg.sender, pureRedemptionAmount);
+        emit RequestRedemption(nonce, msg.sender, address(usdc), pureRedemptionAmount, 0, block.timestamp);
+    }
+
     function cancelIssuance(uint256 nonce) external nonReentrant {
         require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
@@ -108,18 +122,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         sca.refund(requester, amt);
 
         emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
-    }
-
-    function redemption(uint256 amount) external nonReentrant returns (uint256 nonce) {
-        if (amount == 0) revert ZeroAmount();
-        factoryStorage.indexToken().transferFrom(msg.sender, address(sca), amount);
-
-        nonce = ++redemptionNonce;
-
-        factoryStorage.setRedemptionInputAmount(nonce, amount);
-        // factoryStorage.setIssuanceRequesterByNonce(nonce, msg.sender);
-        factoryStorage.addRedemptionForCurrentRound(msg.sender, amount);
-        emit RequestRedemption(nonce, msg.sender, address(usdc), amount, 0, block.timestamp);
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {

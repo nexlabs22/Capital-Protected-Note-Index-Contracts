@@ -86,15 +86,37 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     ) public onlyOwnerOrOperator {
         require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
         require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
+
+        factoryStorage.setRedemptionRoundActive(roundId, false);
         uint256 balance = usdc.balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
-        factoryStorage.setRedemptionRoundActive(roundId, false);
+        uint256 usdcAmountForBond;
+        uint256 usdcAmountForCrypto5;
 
-        uint256 amount20 = (balance * 20) / 100;
-        uint256 amount80 = balance - amount20;
-        issuanceCrypto5(amount20, _tokenInPath, _tokenInFees);
-        withdrawForPurchase(roundId, amount80);
+        for (uint256 i; i < functionsOracle.totalCurrentList(); ++i) {
+            address token = functionsOracle.currentList(i);
+            uint256 share = functionsOracle.tokenCurrentMarketShare(token);
+            uint256 slice = (balance * share) / 100e18;
+
+            if (functionsOracle.tokenAssetType(token) == 1) {
+                usdcAmountForCrypto5 += slice;
+            } else {
+                usdcAmountForBond += slice;
+            }
+        }
+
+        uint256 dust = balance - usdcAmountForCrypto5 - usdcAmountForBond;
+        if (dust > 0) usdcAmountForBond += dust;
+
+        if (usdcAmountForCrypto5 > 0) {
+            issuanceCrypto5(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
+        }
+
+        if (usdcAmountForBond > 0) {
+            withdrawForPurchase(roundId, usdcAmountForBond);
+        }
+
         factory.increaseCurrentRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
     }
@@ -145,7 +167,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
-    function settleIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
+    function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
         require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
 
         uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
@@ -185,7 +207,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit TokensDistributed(roundId, mintAmount, distributed, block.timestamp);
     }
 
-    function settleRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromCr5) external onlyNexBot {
+    function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromCr5) external onlyNexBot {
         if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
             revert RedemptionAmountIsZero();
         }

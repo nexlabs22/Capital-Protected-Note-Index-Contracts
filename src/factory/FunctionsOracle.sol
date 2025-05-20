@@ -31,6 +31,8 @@ contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
     mapping(address => uint256) public tokenCurrentMarketShare;
     mapping(address => uint256) public tokenOracleMarketShare;
 
+    mapping(address => uint8) public tokenAssetType;
+
     mapping(address => bool) public isOperator;
 
     event RequestFulFilled(bytes32 indexed requestId, uint256 time);
@@ -102,14 +104,15 @@ contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
      * Either response or error parameter will be set, but never both
      */
     function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
-        (address[] memory _tokens, uint256[] memory _marketShares) = abi.decode(response, (address[], uint256[]));
+        (uint8[] memory assetType, address[] memory _tokens, uint256[] memory _marketShares) =
+            abi.decode(response, (uint8[], address[], uint256[]));
         require(requestId.length > 0, "invalid request id");
         require(_tokens.length > 0, "invalid tokens");
         require(_marketShares.length > 0, "invalid market shares");
-        _initData(_tokens, _marketShares);
+        _initData(assetType, _tokens, _marketShares);
     }
 
-    function _initData(address[] memory _tokens, uint256[] memory _marketShares) internal {
+    function _initData(uint8[] memory _assetType, address[] memory _tokens, uint256[] memory _marketShares) internal {
         address[] memory tokens0 = _tokens;
         uint256[] memory marketShares0 = _marketShares;
 
@@ -117,6 +120,8 @@ contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
             oracleList[i] = tokens0[i];
             tokenOracleListIndex[tokens0[i]] = i;
             tokenOracleMarketShare[tokens0[i]] = marketShares0[i];
+            tokenAssetType[tokens0[i]] = _assetType[i];
+
             if (totalCurrentList == 0) {
                 currentList[i] = tokens0[i];
                 tokenCurrentMarketShare[tokens0[i]] = marketShares0[i];
