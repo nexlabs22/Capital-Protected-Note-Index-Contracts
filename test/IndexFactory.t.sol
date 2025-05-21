@@ -176,18 +176,16 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuanceHappyPath() public {
         uint256 inAmt = 10_000 * ONE_USDC;
-        uint256 pureAmount = inAmt - (inAmt * 10) / 10000;
         uint256 fee = (inAmt * 10) / 10000;
-        // uint256 fee = inAmt * store.feeRate() / 10_000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), inAmt, 0, block.timestamp);
         uint256 nonce = factory.issuanceIndexToken(inAmt);
 
         assertEq(nonce, 1);
         assertEq(factory.issuanceNonce(), 1);
-        assertEq(usdc.balanceOf(address(sca)), pureAmount);
+        assertEq(usdc.balanceOf(address(sca)), inAmt);
         assertEq(usdc.balanceOf(feeRec), fee);
     }
 
@@ -249,19 +247,17 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuance_HappyPath() public {
         uint256 amount = 10_000 * ONE_USDC;
-        uint256 pureAmount = amount - (amount * 10) / 10000;
         uint256 fee = (amount * 10) / 10000;
-        // uint256 fee = amount * store.feeRate() / 10_000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
         factory.issuanceIndexToken(amount);
 
         assertEq(factory.issuanceNonce(), 1);
-        assertEq(usdc.balanceOf(address(sca)), pureAmount);
+        assertEq(usdc.balanceOf(address(sca)), amount);
         assertEq(usdc.balanceOf(feeRec), fee);
-        assertEq(store.issuanceInputAmount(1), pureAmount);
+        assertEq(store.issuanceInputAmount(1), amount);
     }
 
     function testIssuance_zeroReverts() public {
@@ -277,9 +273,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testRedemption_HappyPath() public {
         uint256 aliceIdx = 80 ether;
-        uint256 pureAliceAmount = aliceIdx - (aliceIdx * 10) / 10000;
         uint256 bobIdx = 20 ether;
-        uint256 pureBobAmount = bobIdx - (bobIdx * 10) / 10000;
 
         _mintAndApproveIdx(alice, aliceIdx);
         _mintAndApproveIdx(bob, bobIdx);
@@ -293,11 +287,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(n2, 2);
         assertEq(factory.redemptionNonce(), 2);
 
-        assertEq(idx.balanceOf(address(sca)), pureAliceAmount + pureBobAmount);
+        assertEq(idx.balanceOf(address(sca)), aliceIdx + bobIdx);
 
-        assertEq(store.totalRedemptionByRound(1), pureAliceAmount + pureBobAmount);
-        assertEq(store.redemptionAmountByRoundUser(1, alice), pureAliceAmount);
-        assertEq(store.redemptionAmountByRoundUser(1, bob), pureBobAmount);
+        assertEq(store.totalRedemptionByRound(1), aliceIdx + bobIdx);
+        assertEq(store.redemptionAmountByRoundUser(1, alice), aliceIdx);
+        assertEq(store.redemptionAmountByRoundUser(1, bob), bobIdx);
     }
 
     function testRedemption_revertsOnZero() public {
@@ -330,7 +324,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function testIssuance_updatesStorageAndRoundData() public {
         uint256 amt = 25_000 * ONE_USDC;
         uint256 fee = (amt * 10) / 10000;
-        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         uint256 n = factory.issuanceIndexToken(amt);
@@ -338,12 +331,12 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(n, 1);
         assertEq(factory.issuanceNonce(), 1);
 
-        assertEq(usdc.balanceOf(address(sca)), pureAmount);
+        assertEq(usdc.balanceOf(address(sca)), amt);
         assertEq(usdc.balanceOf(feeRec), fee);
 
-        assertEq(store.totalIssuanceByRound(1), pureAmount);
-        assertEq(store.issuanceAmountByRoundUser(1, alice), pureAmount);
-        assertEq(store.issuanceInputAmount(n), pureAmount);
+        assertEq(store.totalIssuanceByRound(1), amt);
+        assertEq(store.issuanceAmountByRoundUser(1, alice), amt);
+        assertEq(store.issuanceInputAmount(n), amt);
         assertEq(store.issuanceRequesterByNonce(n), alice);
         assertEq(store.issuanceRoundActive(1), true);
     }
@@ -362,17 +355,15 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function testIssuance_emitsCorrectEvent() public {
         uint256 amt = 5_555 * ONE_USDC;
-        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), pureAmount, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amt, 0, block.timestamp);
         factory.issuanceIndexToken(amt);
     }
 
     function testCancelIssuance_HappyPath() public {
         uint256 amt = 8_000 * ONE_USDC;
-        uint256 pureAmount = amt - (amt * 10) / 10000;
 
         vm.prank(alice);
         uint256 nonce = factory.issuanceIndexToken(amt);
@@ -383,7 +374,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.cancelIssuance(nonce);
 
         uint256 balAfter = usdc.balanceOf(alice);
-        assertEq(balAfter - balBefore, pureAmount, "refund missing");
+        assertEq(balAfter - balBefore, amt, "refund missing");
 
         assertTrue(store.issuanceIsCompleted(nonce));
         assertEq(store.totalIssuanceByRound(1), 0);
@@ -398,20 +389,17 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.startPrank(idx.owner());
         idx.setMinter(address(sca), true);
         vm.stopPrank();
-        // oracle.setOperator(address(sca), true);
-        // idx.setMinter(address(sca), true);
 
         uint256 inAmt = 100_000 * ONE_USDC;
-        uint256 pureAmount = inAmt - (inAmt * 10) / 10000;
 
         vm.prank(alice);
         factory.issuanceIndexToken(inAmt);
-        assertEq(usdc.balanceOf(address(sca)), pureAmount);
+        assertEq(usdc.balanceOf(address(sca)), inAmt);
 
         vm.prank(nexBot);
         sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
 
-        uint256 toBot = pureAmount * 80 / 100;
+        uint256 toBot = inAmt * 80 / 100;
         assertEq(usdc.balanceOf(nexBot), toBot);
 
         uint256 bernQty = 50_000 ether;
@@ -419,13 +407,12 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
-        // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.prank(nexBot);
         sca.completeIssuance(1, bondPrice, c5Price);
 
         // assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
-        assertEq(idxc5.balanceOf(address(vault)), pureAmount / 5);
+        assertEq(idxc5.balanceOf(address(vault)), inAmt / 5);
 
         assertTrue(store.issuanceIsCompleted(1));
     }
@@ -438,8 +425,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.startPrank(idx.owner());
         idx.setMinter(address(sca), true);
         vm.stopPrank();
-        // oracle.setOperator(address(sca), true);
-        // idx.setMinter(address(sca), true);
 
         address carol = vm.addr(9);
         usdc.mint(carol, 1_000_000 * ONE_USDC);
@@ -447,12 +432,9 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         usdc.approve(address(factory), type(uint256).max);
 
         uint256 aAmt = 60_000 * ONE_USDC;
-        uint256 pureAAmount = aAmt - (aAmt * 10) / 10000;
         uint256 bAmt = 30_000 * ONE_USDC;
-        uint256 pureBAmount = bAmt - (bAmt * 10) / 10000;
         uint256 cAmt = 10_000 * ONE_USDC;
-        uint256 pureCAmount = cAmt - (cAmt * 10) / 10000;
-        uint256 totalIn = pureAAmount + pureBAmount + pureCAmount;
+        uint256 totalIn = aAmt + bAmt + cAmt;
 
         vm.prank(alice);
         factory.issuanceIndexToken(aAmt);

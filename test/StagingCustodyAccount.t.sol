@@ -11,6 +11,7 @@ import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {Vault} from "../src/vault/Vault.sol";
+import {FeeCalculation} from "../src/libraries/FeeCalculation.sol";
 import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
@@ -497,8 +498,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.stopPrank();
 
         uint256 totalPaid = usdcFromBond + usdcFromCr5;
-        uint256 aliceShare = totalPaid * idxAlice / (idxAlice + idxBob);
-        uint256 bobShare = totalPaid * idxBob / (idxAlice + idxBob);
+        uint256 feeAmount = FeeCalculation.calculateFee(totalPaid, 10);
+        uint256 pureTotalAmount = totalPaid - feeAmount;
+        uint256 aliceShare = pureTotalAmount * idxAlice / (idxAlice + idxBob);
+        uint256 bobShare = pureTotalAmount * idxBob / (idxAlice + idxBob);
         assertEq(usdc.balanceOf(alice), aliceShare);
         assertEq(usdc.balanceOf(bob), bobShare);
         assertEq(usdc.balanceOf(charlie), 0);
