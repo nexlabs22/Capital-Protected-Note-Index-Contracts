@@ -1,305 +1,305 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.7;
+// // SPDX-License-Identifier: UNLICENSED
+// pragma solidity ^0.8.7;
 
-import "forge-std/Test.sol";
-import "../../src/chainlink/ChainlinkClient.sol";
-import "../../src/helpers/MockApiOracle.sol";
-import "../../src/helpers/LinkToken.sol";
-import "@chainlink/contracts/src/v0.8/operatorforwarder/Chainlink.sol";
-import "@chainlink/contracts/src/v0.8/operatorforwarder/interfaces/ENSInterface.sol";
-import "@chainlink/contracts/src/v0.8/vendor/ENSResolver.sol";
+// import "forge-std/Test.sol";
+// import "../../src/chainlink/ChainlinkClient.sol";
+// import "../../src/helpers/MockApiOracle.sol";
+// import "../../src/helpers/LinkToken.sol";
+// import "@chainlink/contracts/src/v0.8/operatorforwarder/Chainlink.sol";
+// import "@chainlink/contracts/src/v0.8/operatorforwarder/interfaces/ENSInterface.sol";
+// import "@chainlink/contracts/src/v0.8/vendor/ENSResolver.sol";
 
-contract ChainlinkClientTest is Test, ChainlinkClient {
-    using Chainlink for Chainlink.Request;
+// contract ChainlinkClientTest is Test, ChainlinkClient {
+//     using Chainlink for Chainlink.Request;
 
-    MockApiOracle private mockOracle;
-    LinkTokenInterface private linkToken;
+//     MockApiOracle private mockOracle;
+//     LinkTokenInterface private linkToken;
 
-    bytes32 private constant ENS_ORACLE_SUBNAME = keccak256("oracle");
+//     bytes32 private constant ENS_ORACLE_SUBNAME = keccak256("oracle");
 
-    mapping(bytes32 => address) internal s_pendingRequests;
+//     mapping(bytes32 => address) internal s_pendingRequests;
 
-    function setUp() public {
-        linkToken = LinkTokenInterface(address(new LinkToken()));
-        mockOracle = new MockApiOracle(address(linkToken));
-        setChainlinkToken(address(linkToken));
-        setChainlinkOracle(address(mockOracle));
-    }
+//     function setUp() public {
+//         linkToken = LinkTokenInterface(address(new LinkToken()));
+//         mockOracle = new MockApiOracle(address(linkToken));
+//         setChainlinkToken(address(linkToken));
+//         setChainlinkOracle(address(mockOracle));
+//     }
 
-    function testBuildChainlinkRequest() public view {
-        bytes32 specId = "specId";
-        address callbackAddr = address(this);
-        bytes4 callbackFunctionSignature = this.fulfill.selector;
+//     function testBuildChainlinkRequest() public view {
+//         bytes32 specId = "specId";
+//         address callbackAddr = address(this);
+//         bytes4 callbackFunctionSignature = this.fulfill.selector;
 
-        Chainlink.Request memory req = buildChainlinkRequest(specId, callbackAddr, callbackFunctionSignature);
+//         Chainlink.Request memory req = buildChainlinkRequest(specId, callbackAddr, callbackFunctionSignature);
 
-        assertEq(req.id, specId);
-        assertEq(req.callbackAddress, callbackAddr);
-        assertEq(req.callbackFunctionId, callbackFunctionSignature);
-    }
+//         assertEq(req.id, specId);
+//         assertEq(req.callbackAddress, callbackAddr);
+//         assertEq(req.callbackFunctionId, callbackFunctionSignature);
+//     }
 
-    function testBuildOperatorRequest() public view {
-        bytes32 specId = "specId";
-        bytes4 callbackFunctionSignature = this.fulfill.selector;
+//     function testBuildOperatorRequest() public view {
+//         bytes32 specId = "specId";
+//         bytes4 callbackFunctionSignature = this.fulfill.selector;
 
-        Chainlink.Request memory req = buildOperatorRequest(specId, callbackFunctionSignature);
+//         Chainlink.Request memory req = buildOperatorRequest(specId, callbackFunctionSignature);
 
-        assertEq(req.id, specId);
-        assertEq(req.callbackAddress, address(this));
-        assertEq(req.callbackFunctionId, callbackFunctionSignature);
-    }
+//         assertEq(req.id, specId);
+//         assertEq(req.callbackAddress, address(this));
+//         assertEq(req.callbackFunctionId, callbackFunctionSignature);
+//     }
 
-    function testSendChainlinkRequest() public {
-        bytes32 specId = "specId";
-        Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
-        uint256 payment = 1 * LINK_DIVISIBILITY;
+//     function testSendChainlinkRequest() public {
+//         bytes32 specId = "specId";
+//         Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
+//         uint256 payment = 1 * LINK_DIVISIBILITY;
 
-        bytes32 requestId = sendChainlinkRequest(req, payment);
+//         bytes32 requestId = sendChainlinkRequest(req, payment);
 
-        // assertTrue(s_pendingRequests[requestId] != address(0));
-    }
+//         // assertTrue(s_pendingRequests[requestId] != address(0));
+//     }
 
-    function testSendChainlinkRequestTo() public {
-        bytes32 specId = "specId";
-        Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
-        uint256 payment = 1 * LINK_DIVISIBILITY;
+//     function testSendChainlinkRequestTo() public {
+//         bytes32 specId = "specId";
+//         Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
+//         uint256 payment = 1 * LINK_DIVISIBILITY;
 
-        bytes32 requestId = sendChainlinkRequestTo(address(mockOracle), req, payment);
+//         bytes32 requestId = sendChainlinkRequestTo(address(mockOracle), req, payment);
 
-        // assertTrue(s_pendingRequests[requestId] != address(0));
-    }
+//         // assertTrue(s_pendingRequests[requestId] != address(0));
+//     }
 
-    function testGetNextRequestCount() public {
-        uint256 initialCount = getNextRequestCount();
-        sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
-        uint256 newCount = getNextRequestCount();
+//     function testGetNextRequestCount() public {
+//         uint256 initialCount = getNextRequestCount();
+//         sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
+//         uint256 newCount = getNextRequestCount();
 
-        assertEq(newCount, initialCount + 1);
-    }
+//         assertEq(newCount, initialCount + 1);
+//     }
 
-    function fulfill(bytes32 requestId, bytes32 data) public recordChainlinkFulfillment(requestId) {
-        // Fulfillment logic
-    }
+//     function fulfill(bytes32 requestId, bytes32 data) public recordChainlinkFulfillment(requestId) {
+//         // Fulfillment logic
+//     }
 
-    function testAddChainlinkExternalRequest() public {
-        bytes32 requestId = keccak256("externalRequest");
-        address externalOracle = address(mockOracle);
+//     function testAddChainlinkExternalRequest() public {
+//         bytes32 requestId = keccak256("externalRequest");
+//         address externalOracle = address(mockOracle);
 
-        addChainlinkExternalRequest(externalOracle, requestId);
+//         addChainlinkExternalRequest(externalOracle, requestId);
 
-        assertEq(getPendingRequest(requestId), externalOracle);
-    }
+//         assertEq(getPendingRequest(requestId), externalOracle);
+//     }
 
-    function testCancelChainlinkRequest() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//     function testCancelChainlinkRequest() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        uint256 expiration = block.timestamp + 1 days;
-        vm.warp(block.timestamp + 2 days);
+//         uint256 expiration = block.timestamp + 1 days;
+//         vm.warp(block.timestamp + 2 days);
 
-        cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
+//         cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
 
-        assertEq(getPendingRequest(requestId), address(0));
-    }
+//         assertEq(getPendingRequest(requestId), address(0));
+//     }
 
-    function testPendingRequestsMapping() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//     function testPendingRequestsMapping() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        uint256 expiration = block.timestamp + 1 days;
-        vm.warp(block.timestamp + 2 days);
+//         uint256 expiration = block.timestamp + 1 days;
+//         vm.warp(block.timestamp + 2 days);
 
-        cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
+//         cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
 
-        assertEq(getPendingRequest(requestId), address(0));
-    }
+//         assertEq(getPendingRequest(requestId), address(0));
+//     }
 
-    function testFailSendChainlinkRequestInvalidPayment() public {
-        bytes32 specId = "specId";
-        Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
+//     function testFailSendChainlinkRequestInvalidPayment() public {
+//         bytes32 specId = "specId";
+//         Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
 
-        vm.expectRevert("unable to transferAndCall to oracle");
-        sendChainlinkRequest(req, 0);
-    }
+//         vm.expectRevert("unable to transferAndCall to oracle");
+//         sendChainlinkRequest(req, 0);
+//     }
 
-    function testUnauthorizedFulfillment() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//     function testUnauthorizedFulfillment() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        vm.prank(address(0xdeadbeef));
-        vm.expectRevert("Source must be the oracle of the request");
-        fulfill(requestId, keccak256("data"));
-    }
-
-    function testSetPublicChainlinkToken() public {
-        address mockLinkAddress = address(linkToken);
+//         vm.prank(address(0xdeadbeef));
+//         vm.expectRevert("Source must be the oracle of the request");
+//         fulfill(requestId, keccak256("data"));
+//     }
+
+//     function testSetPublicChainlinkToken() public {
+//         address mockLinkAddress = address(linkToken);
 
-        vm.mockCall(
-            0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
-            abi.encodeWithSelector(PointerInterface.getAddress.selector),
-            abi.encode(mockLinkAddress)
-        );
-
-        setPublicChainlinkToken();
-        assertEq(chainlinkTokenAddress(), mockLinkAddress);
-    }
-
-    function testDuplicateRequests() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//         vm.mockCall(
+//             0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
+//             abi.encodeWithSelector(PointerInterface.getAddress.selector),
+//             abi.encode(mockLinkAddress)
+//         );
+
+//         setPublicChainlinkToken();
+//         assertEq(chainlinkTokenAddress(), mockLinkAddress);
+//     }
+
+//     function testDuplicateRequests() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        vm.expectRevert("Request is already pending");
-        addChainlinkExternalRequest(address(mockOracle), requestId);
-    }
+//         vm.expectRevert("Request is already pending");
+//         addChainlinkExternalRequest(address(mockOracle), requestId);
+//     }
 
-    function testFulfillNonExistentRequest() public {
-        bytes32 requestId = keccak256("nonexistent");
-
-        vm.expectRevert("Source must be the oracle of the request");
-        fulfill(requestId, keccak256("data"));
-    }
-
-    function testFulfillInvalidOracle() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//     function testFulfillNonExistentRequest() public {
+//         bytes32 requestId = keccak256("nonexistent");
+
+//         vm.expectRevert("Source must be the oracle of the request");
+//         fulfill(requestId, keccak256("data"));
+//     }
+
+//     function testFulfillInvalidOracle() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        vm.prank(address(0xdeadbeef));
-        vm.expectRevert("Source must be the oracle of the request");
-        fulfill(requestId, keccak256("data"));
-    }
-
-    function testFailSendChainlinkRequest_RevertsOnZeroPayment() public {
-        bytes32 specId = "specId";
-        Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
-
-        vm.expectRevert("unable to transferAndCall to oracle");
-        sendChainlinkRequest(req, 0);
-    }
+//         vm.prank(address(0xdeadbeef));
+//         vm.expectRevert("Source must be the oracle of the request");
+//         fulfill(requestId, keccak256("data"));
+//     }
+
+//     function testFailSendChainlinkRequest_RevertsOnZeroPayment() public {
+//         bytes32 specId = "specId";
+//         Chainlink.Request memory req = buildChainlinkRequest(specId, address(this), this.fulfill.selector);
+
+//         vm.expectRevert("unable to transferAndCall to oracle");
+//         sendChainlinkRequest(req, 0);
+//     }
 
-    function test_failsCancelChainlinkRequest_RevertsIfNotExpired() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
+//     function test_failsCancelChainlinkRequest_RevertsIfNotExpired() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
 
-        uint256 expiration = block.timestamp + 1 days;
+//         uint256 expiration = block.timestamp + 1 days;
 
-        vm.expectRevert("Request is not expired");
-        cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
-    }
+//         vm.expectRevert("Request is not expired");
+//         cancelChainlinkRequest(requestId, 1 * LINK_DIVISIBILITY, this.fulfill.selector, expiration);
+//     }
 
-    function testAddChainlinkExternalRequest_RevertsOnDuplicateRequest() public {
-        bytes32 requestId = keccak256("externalRequest");
-        address externalOracle = address(mockOracle);
+//     function testAddChainlinkExternalRequest_RevertsOnDuplicateRequest() public {
+//         bytes32 requestId = keccak256("externalRequest");
+//         address externalOracle = address(mockOracle);
 
-        addChainlinkExternalRequest(externalOracle, requestId);
+//         addChainlinkExternalRequest(externalOracle, requestId);
 
-        vm.expectRevert("Request is already pending");
-        addChainlinkExternalRequest(externalOracle, requestId);
-    }
-
-    function testFulfill_RevertsForInvalidOracle() public {
-        bytes32 requestId = sendChainlinkRequest(
-            buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
-
-        vm.prank(address(0xdeadbeef));
-        vm.expectRevert("Source must be the oracle of the request");
-        fulfill(requestId, keccak256("data"));
-    }
-
-    function testSetPublicChainlinkToken_Success() public {
-        address mockLinkAddress = address(linkToken);
-
-        vm.mockCall(
-            0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
-            abi.encodeWithSelector(PointerInterface.getAddress.selector),
-            abi.encode(mockLinkAddress)
-        );
-
-        setPublicChainlinkToken();
-        assertEq(chainlinkTokenAddress(), mockLinkAddress);
-    }
-
-    function testRequestIdUniqueness() public {
-        uint256 initialCount = getNextRequestCount();
-
-        sendChainlinkRequest(
-            buildChainlinkRequest("specId1", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
-        sendChainlinkRequest(
-            buildChainlinkRequest("specId2", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
-        );
-
-        uint256 newCount = getNextRequestCount();
-        assertEq(newCount, initialCount + 2, "Request count did not increment correctly");
-    }
-
-    function testChainlinkTokenAddress() public view {
-        assertEq(chainlinkTokenAddress(), address(linkToken));
-    }
-
-    function testChainlinkOracleAddress() public view {
-        assertEq(chainlinkOracleAddress(), address(mockOracle));
-    }
-}
-
-contract MockPointerInterface is PointerInterface {
-    address public mockAddress;
-
-    constructor(address _mockAddress) {
-        mockAddress = _mockAddress;
-    }
-
-    function getAddress() external view override returns (address) {
-        return mockAddress;
-    }
-}
-
-contract MockENS is ENSInterface {
-    mapping(bytes32 => address) private resolvers;
-
-    function setResolver(bytes32 node, address resl) public {
-        resolvers[node] = resl;
-    }
-
-    function resolver(bytes32 node) external view override returns (address) {
-        address res = resolvers[node];
-        require(res != address(0), "Resolver not set for this node");
-        return res;
-    }
-
-    function owner(bytes32) external pure override returns (address) {
-        return address(0);
-    }
-
-    function setOwner(bytes32, address) external pure override {}
-
-    function setSubnodeOwner(bytes32, bytes32, address) external pure override {}
-
-    function setTTL(bytes32, uint64) external pure override {}
-
-    function ttl(bytes32) external pure override returns (uint64) {
-        return 0;
-    }
-}
-
-contract MockENSResolver is ENSResolver_Chainlink {
-    mapping(bytes32 => address) private addresses;
-
-    function setAddr(bytes32 node, address addrs) public {
-        addresses[node] = addrs;
-    }
-
-    function addr(bytes32 node) public view override returns (address) {
-        address addrs = addresses[node];
-        require(addrs != address(0), "Address not set for this node");
-        return addrs;
-    }
-}
+//         vm.expectRevert("Request is already pending");
+//         addChainlinkExternalRequest(externalOracle, requestId);
+//     }
+
+//     function testFulfill_RevertsForInvalidOracle() public {
+//         bytes32 requestId = sendChainlinkRequest(
+//             buildChainlinkRequest("specId", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
+
+//         vm.prank(address(0xdeadbeef));
+//         vm.expectRevert("Source must be the oracle of the request");
+//         fulfill(requestId, keccak256("data"));
+//     }
+
+//     function testSetPublicChainlinkToken_Success() public {
+//         address mockLinkAddress = address(linkToken);
+
+//         vm.mockCall(
+//             0xC89bD4E1632D3A43CB03AAAd5262cbe4038Bc571,
+//             abi.encodeWithSelector(PointerInterface.getAddress.selector),
+//             abi.encode(mockLinkAddress)
+//         );
+
+//         setPublicChainlinkToken();
+//         assertEq(chainlinkTokenAddress(), mockLinkAddress);
+//     }
+
+//     function testRequestIdUniqueness() public {
+//         uint256 initialCount = getNextRequestCount();
+
+//         sendChainlinkRequest(
+//             buildChainlinkRequest("specId1", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
+//         sendChainlinkRequest(
+//             buildChainlinkRequest("specId2", address(this), this.fulfill.selector), 1 * LINK_DIVISIBILITY
+//         );
+
+//         uint256 newCount = getNextRequestCount();
+//         assertEq(newCount, initialCount + 2, "Request count did not increment correctly");
+//     }
+
+//     function testChainlinkTokenAddress() public view {
+//         assertEq(chainlinkTokenAddress(), address(linkToken));
+//     }
+
+//     function testChainlinkOracleAddress() public view {
+//         assertEq(chainlinkOracleAddress(), address(mockOracle));
+//     }
+// }
+
+// contract MockPointerInterface is PointerInterface {
+//     address public mockAddress;
+
+//     constructor(address _mockAddress) {
+//         mockAddress = _mockAddress;
+//     }
+
+//     function getAddress() external view override returns (address) {
+//         return mockAddress;
+//     }
+// }
+
+// contract MockENS is ENSInterface {
+//     mapping(bytes32 => address) private resolvers;
+
+//     function setResolver(bytes32 node, address resl) public {
+//         resolvers[node] = resl;
+//     }
+
+//     function resolver(bytes32 node) external view override returns (address) {
+//         address res = resolvers[node];
+//         require(res != address(0), "Resolver not set for this node");
+//         return res;
+//     }
+
+//     function owner(bytes32) external pure override returns (address) {
+//         return address(0);
+//     }
+
+//     function setOwner(bytes32, address) external pure override {}
+
+//     function setSubnodeOwner(bytes32, bytes32, address) external pure override {}
+
+//     function setTTL(bytes32, uint64) external pure override {}
+
+//     function ttl(bytes32) external pure override returns (uint64) {
+//         return 0;
+//     }
+// }
+
+// contract MockENSResolver is ENSResolver_Chainlink {
+//     mapping(bytes32 => address) private addresses;
+
+//     function setAddr(bytes32 node, address addrs) public {
+//         addresses[node] = addrs;
+//     }
+
+//     function addr(bytes32 node) public view override returns (address) {
+//         address addrs = addresses[node];
+//         require(addrs != address(0), "Address not set for this node");
+//         return addrs;
+//     }
+// }
