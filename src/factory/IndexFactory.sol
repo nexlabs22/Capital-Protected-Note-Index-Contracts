@@ -51,6 +51,15 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
+    event RequestCancelRedemption(
+        uint256 indexed nonce,
+        address indexed user,
+        address outputToken,
+        uint256 inputAmount,
+        uint256 outputAmount,
+        uint256 time
+    );
+
     modifier onlyOwnerOrOperator() {
         require(
             msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender),
@@ -115,6 +124,23 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         factoryStorage.sca().refund(requester, amt);
 
         emit RequestCancelIssuance(nonce, requester, address(factoryStorage.usdc()), amt, 0, block.timestamp);
+    }
+
+    function cancelRedemption(uint256 nonce) external nonReentrant {
+        // require(!factoryStorage.redemptionIsCompleted(nonce), "Redemption is completed");
+
+        address requester = factoryStorage.redemptionRequesterByNonce(nonce);
+        require(msg.sender == requester, "Only requester can cancel");
+
+        uint256 amt = factoryStorage.redemptionInputAmount(nonce);
+        require(amt > 0, "nothing to refund");
+
+        factoryStorage.undoRedemption(requester, amt);
+        // factoryStorage.redemptionIsCompleted(nonce) = true;
+
+        factoryStorage.indexToken().transferFrom(address(factoryStorage.sca()), requester, amt);
+
+        emit RequestCancelRedemption(nonce, requester, address(factoryStorage.indexToken()), amt, 0, block.timestamp);
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {
