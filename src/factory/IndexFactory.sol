@@ -20,10 +20,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     using SafeERC20 for IERC20;
 
     IndexFactoryStorage factoryStorage;
-    StagingCustodyAccount sca;
 
-    address public indexToken;
-    address public usdc;
     uint256 public issuanceNonce;
     uint256 public redemptionNonce;
 
@@ -63,10 +60,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function initialize(address _indexFactoryStorage) external initializer {
+        require(_indexFactoryStorage != address(0), "Invalid Address");
         factoryStorage = IndexFactoryStorage(_indexFactoryStorage);
-        indexToken = address(factoryStorage.indexToken());
-        sca = factoryStorage.sca();
-        usdc = address(factoryStorage.usdc());
 
         __Ownable_init(msg.sender);
         __Pausable_init();
@@ -80,36 +75,34 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
-        // uint256 feeAmount = (_inputAmount * factoryStorage.feeRate()) / 10000;
         uint256 feeAmount = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
-        uint256 pureIssuanceAmount = _inputAmount - feeAmount;
-        IERC20(usdc).safeTransferFrom(msg.sender, address(sca), pureIssuanceAmount);
-        IERC20(usdc).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
+        // uint256 pureIssuanceAmount = _inputAmount + feeAmount;
+        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(factoryStorage.sca()), _inputAmount);
+        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
 
         issuanceNonce++;
-        factoryStorage.setIssuanceInputAmount(issuanceNonce, pureIssuanceAmount);
+        factoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
-        factoryStorage.addIssuanceForCurrentRound(msg.sender, pureIssuanceAmount);
+        factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
-        emit RequestIssuance(issuanceNonce, msg.sender, address(usdc), pureIssuanceAmount, 0, block.timestamp);
+        emit RequestIssuance(
+            issuanceNonce, msg.sender, address(factoryStorage.usdc()), _inputAmount, 0, block.timestamp
+        );
         return issuanceNonce;
     }
 
     function redemption(uint256 _amount) external nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
-        uint256 feeAmount = FeeCalculation.calculateFee(_amount, factoryStorage.feeRate());
-        uint256 pureRedemptionAmount = _amount - feeAmount;
-        IERC20(factoryStorage.indexToken()).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
-        factoryStorage.indexToken().transferFrom(msg.sender, address(sca), pureRedemptionAmount);
+        factoryStorage.indexToken().transferFrom(msg.sender, address(factoryStorage.sca()), _amount);
 
         nonce = ++redemptionNonce;
 
-        factoryStorage.setRedemptionInputAmount(nonce, pureRedemptionAmount);
-        factoryStorage.addRedemptionForCurrentRound(msg.sender, pureRedemptionAmount);
-        emit RequestRedemption(nonce, msg.sender, address(usdc), pureRedemptionAmount, 0, block.timestamp);
+        factoryStorage.setRedemptionInputAmount(nonce, _amount);
+        factoryStorage.addRedemptionForCurrentRound(msg.sender, _amount);
+        emit RequestRedemption(nonce, msg.sender, address(factoryStorage.usdc()), _amount, 0, block.timestamp);
     }
 
-    function cancelIssuance(uint256 nonce) external nonReentrant {
+    function cancelIssuance( /*uint256 roundId,*/ uint256 nonce) external nonReentrant {
         require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
@@ -119,9 +112,9 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         factoryStorage.undoIssuance(requester, amt);
         factoryStorage.setIssuanceCompleted(nonce, true);
-        sca.refund(requester, amt);
+        factoryStorage.sca().refund(requester, amt);
 
-        emit RequestCancelIssuance(nonce, requester, address(usdc), amt, 0, block.timestamp);
+        emit RequestCancelIssuance(nonce, requester, address(factoryStorage.usdc()), amt, 0, block.timestamp);
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {

@@ -13,6 +13,7 @@ import {IndexToken} from "../token/IndexToken.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {Vault} from "../vault/Vault.sol";
+import {FeeCalculation} from "../libraries/FeeCalculation.sol";
 
 error ZeroAmount();
 error ZeroAddress();
@@ -218,6 +219,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         uint256 totalUSDC = usdcFromBond + usdcFromCr5;
         require(totalUSDC > 0, "zero USDC received");
+        uint256 feeAmount = FeeCalculation.calculateFee(totalUSDC, factoryStorage.feeRate());
+        uint256 usdcForDistribute = totalUSDC - feeAmount;
 
         address[] memory users = factoryStorage.addressesInRedemptionRound(roundId);
 
@@ -227,7 +230,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         for (uint256 i; i < users.length; ++i) {
             address user = users[i];
             uint256 idx = factoryStorage.redemptionAmountByRoundUser(roundId, user);
-            uint256 owed = totalUSDC * idx / totalIDX;
+            uint256 owed = usdcForDistribute * idx / totalIDX;
 
             if (owed > 0) {
                 usdc.safeTransfer(user, owed);
@@ -235,12 +238,13 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             }
         }
 
-        uint256 dust = totalUSDC - paid;
+        uint256 dust = usdcForDistribute - paid;
         if (dust > 0) usdc.safeTransfer(factoryStorage.feeReceiver(), dust);
+        usdc.safeTransfer(factoryStorage.feeReceiver(), feeAmount);
 
         factoryStorage.settleRedemption(roundId);
 
-        emit RedemptionSettled(roundId, totalUSDC, block.timestamp);
+        emit RedemptionSettled(roundId, usdcForDistribute, block.timestamp);
     }
 
     function initiateRedemptionBatch(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
