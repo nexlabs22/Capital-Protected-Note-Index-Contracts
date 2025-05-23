@@ -33,23 +33,24 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     bool public isMainnet;
 
     mapping(uint256 => bool) public issuanceIsCompleted;
+    mapping(uint256 => bool) public redemptionIsCompleted;
     mapping(uint256 => address) public issuanceRequesterByNonce;
     mapping(uint256 => address) public redemptionRequesterByNonce;
     mapping(uint256 => uint256) public issuanceInputAmount;
     mapping(uint256 => uint256) public redemptionInputAmount;
     mapping(uint256 => uint256) public burnedTokenAmountByNonce;
-    mapping(uint256 => address[]) private roundIdToAddresses;
+    mapping(uint256 => address[]) public issuanceRoundIdToAddresses;
+    mapping(uint256 => address[]) public redemptionRoundIdToAddresses;
     mapping(uint256 => mapping(address => uint256)) public issuanceAmountByRoundUser;
-    mapping(uint256 => uint256) public totalIssuanceByRound;
-    // mapping(uint256 => bool) public roundIdIsActive;
-    mapping(uint256 => bool) public issuanceRoundActive;
     mapping(uint256 => mapping(address => uint256)) public redemptionAmountByRoundUser;
+    mapping(uint256 => uint256) public totalIssuanceByRound;
     mapping(uint256 => uint256) public totalRedemptionByRound;
+    mapping(uint256 => bool) public issuanceRoundActive;
     mapping(uint256 => bool) public redemptionRoundActive;
-    mapping(uint256 => bool) public redemptionRoundCompleted;
-    mapping(uint256 => address[]) public redemptionAddrs;
     mapping(uint256 => uint256) public roundIdToBondAmount;
     mapping(uint256 => uint256) public roundIdToCrypto5Amount;
+    mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
+    mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
@@ -132,15 +133,15 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         feeReceiver = _feeReceiver;
     }
 
-    function setBondAmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
-        if (_amount == 0) revert ZeroAmount();
-        roundIdToBondAmount[_roundId] = _amount;
-    }
+    // function setBondAmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
+    //     if (_amount == 0) revert ZeroAmount();
+    //     roundIdToBondAmount[_roundId] = _amount;
+    // }
 
-    function setCrypto5AmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
-        if (_amount == 0) revert ZeroAmount();
-        roundIdToCrypto5Amount[_roundId] = _amount;
-    }
+    // function setCrypto5AmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
+    //     if (_amount == 0) revert ZeroAmount();
+    //     roundIdToCrypto5Amount[_roundId] = _amount;
+    // }
 
     function setIssuanceInputAmount(uint256 _issuanceNonce, uint256 _amount) external onlyFactory {
         if (_amount == 0) revert ZeroAmount();
@@ -152,18 +153,22 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         redemptionInputAmount[_redemptionNonce] = _amount;
     }
 
-    function setBurnedTokenAmountByNonce(uint256 _redemptionNonce, uint256 _burnedAmount) external onlyFactory {
-        if (_burnedAmount == 0) revert ZeroAmount();
-        burnedTokenAmountByNonce[_redemptionNonce] = _burnedAmount;
-    }
+    // function setBurnedTokenAmountByNonce(uint256 _redemptionNonce, uint256 _burnedAmount) external onlyFactory {
+    //     if (_burnedAmount == 0) revert ZeroAmount();
+    //     burnedTokenAmountByNonce[_redemptionNonce] = _burnedAmount;
+    // }
 
-    function setRoundIdToAddresses(uint256 _roundId, address[] memory addresses) external onlyFactory {
+    function setIssuanceRoundIdToAddresses(uint256 _roundId, address[] memory addresses) external onlyFactory {
         require(_roundId > 0, "Invalid roundId amount");
-        roundIdToAddresses[_roundId] = addresses;
+        issuanceRoundIdToAddresses[_roundId] = addresses;
     }
 
     function setIssuanceCompleted(uint256 nonce, bool flag) external onlyFactory {
         issuanceIsCompleted[nonce] = flag;
+    }
+
+    function setRedemptionCompleted(uint256 nonce, bool flag) external onlyFactory {
+        redemptionIsCompleted[nonce] = flag;
     }
 
     function increaseIssuanceRoundId() external onlyFactory {
@@ -184,7 +189,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         }
 
         if (issuanceAmountByRoundUser[issuanceRoundId][account] == 0) {
-            roundIdToAddresses[issuanceRoundId].push(account);
+            issuanceRoundIdToAddresses[issuanceRoundId].push(account);
         }
         issuanceAmountByRoundUser[issuanceRoundId][account] += amount;
         totalIssuanceByRound[issuanceRoundId] += amount;
@@ -193,10 +198,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function addRedemptionForCurrentRound(address user, uint256 amount) external onlyFactory {
         uint256 roundId = redemptionRoundId;
 
-        if (!issuanceRoundActive[roundId]) issuanceRoundActive[roundId] = true;
+        if (!redemptionRoundActive[roundId]) redemptionRoundActive[roundId] = true;
 
         if (redemptionAmountByRoundUser[roundId][user] == 0) {
-            redemptionAddrs[roundId].push(user);
+            redemptionRoundIdToAddresses[roundId].push(user);
         }
 
         redemptionAmountByRoundUser[roundId][user] += amount;
@@ -204,11 +209,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function addressesInRedemptionRound(uint256 roundId) external view returns (address[] memory) {
-        return redemptionAddrs[roundId];
+        return redemptionRoundIdToAddresses[roundId];
     }
 
-    function addressesInRound(uint256 roundId) external view returns (address[] memory) {
-        return roundIdToAddresses[roundId];
+    function addressesInIssuanceRound(uint256 roundId) external view returns (address[] memory) {
+        return issuanceRoundIdToAddresses[roundId];
     }
 
     function getRedemptionRoundActive(uint256 roundId) external view returns (bool) {
@@ -233,7 +238,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         totalIssuanceByRound[round] -= amount;
 
         if (issuanceAmountByRoundUser[round][account] == 0) {
-            address[] storage arr = roundIdToAddresses[round];
+            address[] storage arr = issuanceRoundIdToAddresses[round];
             for (uint256 i; i < arr.length; ++i) {
                 if (arr[i] == account) {
                     arr[i] = arr[arr.length - 1];
@@ -248,7 +253,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function undoRedemption(address user, uint256 amount) external onlyFactory {
-        // uint256 roundId = issuanceRoundId;
         uint256 roundId = redemptionRoundId;
         uint256 before = redemptionAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
@@ -257,7 +261,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         totalRedemptionByRound[roundId] -= amount;
 
         if (redemptionAmountByRoundUser[roundId][user] == 0) {
-            address[] storage arr = redemptionAddrs[roundId];
+            address[] storage arr = redemptionRoundIdToAddresses[roundId];
             for (uint256 i; i < arr.length; ++i) {
                 if (arr[i] == user) {
                     arr[i] = arr[arr.length - 1];
@@ -272,11 +276,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
-        address[] storage list = roundIdToAddresses[roundId];
+        address[] storage list = issuanceRoundIdToAddresses[roundId];
         for (uint256 i = 0; i < list.length; ++i) {
             delete issuanceAmountByRoundUser[roundId][list[i]];
         }
-        delete roundIdToAddresses[roundId];
+        delete issuanceRoundIdToAddresses[roundId];
 
         delete totalIssuanceByRound[roundId];
 
@@ -287,21 +291,21 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function settleRedemption(uint256 roundId) external onlyOwnerOrOperator {
-        address[] storage list = redemptionAddrs[roundId];
+        address[] storage list = redemptionRoundIdToAddresses[roundId];
         for (uint256 i = 0; i < list.length; ++i) {
             delete redemptionAmountByRoundUser[roundId][list[i]];
         }
-        delete redemptionAddrs[roundId];
+        delete redemptionRoundIdToAddresses[roundId];
         delete totalRedemptionByRound[roundId];
 
-        redemptionRoundCompleted[roundId] = true;
+        redemptionIsCompleted[roundId] = true;
         redemptionRoundActive[roundId] = false;
 
         emit RedemptionSettled(roundId);
     }
 
     function _pruneAddress(uint256 round, address user) internal {
-        address[] storage arr = roundIdToAddresses[round];
+        address[] storage arr = issuanceRoundIdToAddresses[round];
         for (uint256 i; i < arr.length; ++i) {
             if (arr[i] == user) {
                 arr[i] = arr[arr.length - 1];

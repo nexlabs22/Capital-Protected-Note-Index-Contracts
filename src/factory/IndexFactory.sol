@@ -33,7 +33,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
-    event RequestCancelIssuance(
+    event CancelIssuanceCompleted(
         uint256 indexed nonce,
         address indexed user,
         address inputToken,
@@ -51,7 +51,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 time
     );
 
-    event RequestCancelRedemption(
+    event CancelRedemptionCompleted(
         uint256 indexed nonce,
         address indexed user,
         address outputToken,
@@ -116,31 +116,45 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
 
-        uint256 amt = factoryStorage.issuanceInputAmount(nonce);
-        require(amt > 0, "nothing to refund");
+        uint256 amount = factoryStorage.issuanceInputAmount(nonce);
+        require(amount > 0, "nothing to refund");
 
-        factoryStorage.undoIssuance(requester, amt);
+        uint256 roundId = factoryStorage.issuanceRoundId();
+        require(factoryStorage.issuanceRoundActive(roundId), "round already processed");
+
+        require(
+            IERC20(factoryStorage.usdc()).balanceOf(address(factoryStorage.sca())) >= amount, "USDC already deployed"
+        );
+
+        factoryStorage.undoIssuance(requester, amount);
         factoryStorage.setIssuanceCompleted(nonce, true);
-        factoryStorage.sca().refund(requester, amt);
+        factoryStorage.sca().refund(requester, amount);
 
-        emit RequestCancelIssuance(nonce, requester, address(factoryStorage.usdc()), amt, 0, block.timestamp);
+        emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount, 0, block.timestamp);
     }
 
     function cancelRedemption(uint256 nonce) external nonReentrant {
-        // require(!factoryStorage.redemptionIsCompleted(nonce), "Redemption is completed");
+        require(!factoryStorage.redemptionIsCompleted(nonce), "Redemption is completed");
 
         address requester = factoryStorage.redemptionRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
 
-        uint256 amt = factoryStorage.redemptionInputAmount(nonce);
-        require(amt > 0, "nothing to refund");
+        uint256 amount = factoryStorage.redemptionInputAmount(nonce);
+        require(amount > 0, "nothing to refund");
 
-        factoryStorage.undoRedemption(requester, amt);
-        // factoryStorage.redemptionIsCompleted(nonce) = true;
+        uint256 roundId = factoryStorage.redemptionRoundId();
+        require(factoryStorage.redemptionRoundActive(roundId), "round already processed");
 
-        factoryStorage.indexToken().transferFrom(address(factoryStorage.sca()), requester, amt);
+        require(factoryStorage.indexToken().balanceOf(address(factoryStorage.sca())) >= amount, "IDX already deployed");
 
-        emit RequestCancelRedemption(nonce, requester, address(factoryStorage.indexToken()), amt, 0, block.timestamp);
+        factoryStorage.undoRedemption(requester, amount);
+        factoryStorage.setRedemptionCompleted(nonce, true);
+
+        factoryStorage.sca().rescue(address(factoryStorage.indexToken()), requester, amount);
+
+        emit CancelRedemptionCompleted(
+            nonce, requester, address(factoryStorage.indexToken()), amount, 0, block.timestamp
+        );
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {

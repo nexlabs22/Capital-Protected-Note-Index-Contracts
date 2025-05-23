@@ -184,7 +184,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 mintAmount = calculateMintAmount(oldValue, newValue);
         if (mintAmount > 0) indexToken.mint(address(this), mintAmount);
 
-        address[] memory addrs = factoryStorage.addressesInRound(roundId);
+        address[] memory addrs = factoryStorage.addressesInIssuanceRound(roundId);
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
 
