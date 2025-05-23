@@ -488,4 +488,56 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     //     bytes memory data = abi.encode(assetList, tokenShares);
     //     oracle.fulfillRequest(address(oracle), requestId, data);
     // }
+
+    function test_cancelIssuance_branch_balanceOfSCA_lt_amount() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.prank(alice);
+        uint256 nonce = factory.issuanceIndexToken(amt);
+
+        address scaAddr = address(sca);
+        address dummy = address(0xdead);
+        vm.prank(scaAddr);
+        usdc.transfer(dummy, amt);
+        assertEq(usdc.balanceOf(scaAddr), 0);
+
+        vm.prank(alice);
+        vm.expectRevert(bytes("USDC already deployed"));
+        factory.cancelIssuance(nonce);
+    }
+
+    function test_cancelRedemption_revertsWhenRedemptionIsCompleted() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption(idxAmount);
+
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(nonce, true);
+
+        vm.prank(alice);
+        vm.expectRevert("Redemption is completed");
+        factory.cancelRedemption(nonce);
+    }
+
+    function test_cancelRedemption_branch_balanceOfSCA_lt_amount() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption(idxAmount);
+
+        vm.prank(address(factory));
+        store.setRedemptionRequesterByNonce(nonce, alice);
+
+        address scaAddr = address(sca);
+        address dummy = address(0xdead);
+        vm.prank(scaAddr);
+        idx.transfer(dummy, idxAmount);
+        assertEq(idx.balanceOf(scaAddr), 0);
+
+        vm.prank(alice);
+        vm.expectRevert(bytes("IDX already deployed"));
+        factory.cancelRedemption(nonce);
+    }
 }

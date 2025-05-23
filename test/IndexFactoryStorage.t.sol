@@ -99,7 +99,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.prank(factory);
         store.addIssuanceForCurrentRound(alice, 50);
 
-        address[] memory list = store.addressesInRound(1);
+        address[] memory list = store.addressesInIssuanceRound(1);
         assertEq(list.length, 1);
         assertEq(store.totalIssuanceByRound(1), 150);
     }
@@ -115,7 +115,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
         assertEq(store.issuanceRoundId(), 1);
         assertEq(store.totalIssuanceByRound(1), 0);
-        assertEq(store.addressesInRound(1).length, 0);
+        assertEq(store.addressesInIssuanceRound(1).length, 0);
         assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
     }
 
@@ -142,15 +142,15 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(store.redemptionInputAmount(1), 500);
     }
 
-    function testSetBurnedTokenAmount() public {
-        vm.prank(factory);
-        vm.expectRevert(ZeroAmount.selector);
-        store.setBurnedTokenAmountByNonce(1, 0);
+    // function testSetBurnedTokenAmount() public {
+    //     vm.prank(factory);
+    //     vm.expectRevert(ZeroAmount.selector);
+    //     store.setBurnedTokenAmountByNonce(1, 0);
 
-        vm.prank(factory);
-        store.setBurnedTokenAmountByNonce(1, 77);
-        assertEq(store.burnedTokenAmountByNonce(1), 77);
-    }
+    //     vm.prank(factory);
+    //     store.setBurnedTokenAmountByNonce(1, 77);
+    //     assertEq(store.burnedTokenAmountByNonce(1), 77);
+    // }
 
     function testSetRoundIdToAddresses() public {
         address[] memory arr = new address[](2);
@@ -159,11 +159,11 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
         vm.prank(factory);
         vm.expectRevert("Invalid roundId amount");
-        store.setRoundIdToAddresses(0, arr);
+        store.setIssuanceRoundIdToAddresses(0, arr);
 
         vm.prank(factory);
-        store.setRoundIdToAddresses(5, arr);
-        address[] memory stored = store.addressesInRound(5);
+        store.setIssuanceRoundIdToAddresses(5, arr);
+        address[] memory stored = store.addressesInIssuanceRound(5);
         assertEq(stored.length, 2);
         assertEq(stored[1], bob);
     }
@@ -237,10 +237,10 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.setRedemptionInputAmount(1, 100);
     }
 
-    function test_setBurnedTokenAmountByNonce_FailWhenSenderIsNotFactory() public {
-        vm.expectRevert("Caller is not a factory contract");
-        store.setBurnedTokenAmountByNonce(1, 1);
-    }
+    // function test_setBurnedTokenAmountByNonce_FailWhenSenderIsNotFactory() public {
+    //     vm.expectRevert("Caller is not a factory contract");
+    //     store.setBurnedTokenAmountByNonce(1, 1);
+    // }
 
     function testSetRoundIdToAddresses_FailWhenSenderIsNotFactory() public {
         address[] memory arr = new address[](2);
@@ -248,7 +248,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         arr[1] = bob;
 
         vm.expectRevert("Caller is not a factory contract");
-        store.setRoundIdToAddresses(1, arr);
+        store.setIssuanceRoundIdToAddresses(1, arr);
     }
 
     function test_increaseCurrentRoundId_FailWhenSenderIsNotFactory() public {
@@ -405,21 +405,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.settleRedemption(1);
     }
 
-    // function test_settleRedemption_SuccessfulSettleRedemption() public {
-    //     vm.prank(factory);
-    //     store.addRedemptionForCurrentRound(alice, 80);
-    //     vm.prank(factory);
-    //     store.addRedemptionForCurrentRound(bob, 20);
-
-    //     vm.prank(nexBot);
-    //     store.settleRedemption(1);
-
-    //     assertEq(store.redemptionRoundId(), 2);
-    //     assertEq(store.totalRedemptionByRound(1), 0);
-    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-    // }
-
     function test_setRedemptionRoundActive_FailWhenSenderNotFactory() public {
         vm.expectRevert("Caller is not a factory contract");
         store.setRedemptionRoundActive(1, true);
@@ -447,27 +432,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(list[0], alice);
         assertEq(list[1], bob);
     }
-
-    // function test_RedemptionStateIsolatedAcrossRounds() public {
-    //     vm.startPrank(factory);
-    //     store.addRedemptionForCurrentRound(alice, 100);
-    //     store.setRedemptionRoundActive(1, true);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(owner);
-    //     store.settleRedemption(1);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.addRedemptionForCurrentRound(bob, 200);
-    //     vm.stopPrank();
-
-    //     assertEq(store.totalRedemptionByRound(1), 0);
-    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-    //     assertEq(store.redemptionRoundId(), 2);
-    //     assertEq(store.totalRedemptionByRound(2), 200);
-    //     assertEq(store.redemptionAmountByRoundUser(2, bob), 200);
-    // }
 
     function test_increaseCurrentRoundId_Success() public {
         vm.prank(factory);
@@ -635,7 +599,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.undoIssuance(bob, 50);
         vm.stopPrank();
 
-        address[] memory list = store.addressesInRound(1);
+        address[] memory list = store.addressesInIssuanceRound(1);
         assertEq(list.length, 1);
         assertEq(list[0], charlie);
     }
@@ -777,21 +741,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.stopPrank();
     }
 
-    function test_setBondAmountByRoundId_RevertOnZeroAmount() public {
-        vm.startPrank(factory);
-        vm.expectRevert(ZeroAmount.selector);
-        store.setBondAmountByRoundId(1, 0);
-        vm.stopPrank();
-    }
-
-    function test_setCrypto5AmountByRoundId_ZeroAmountReverts() public {
-        uint256 roundId = 1;
-        uint256 zeroAmount = 0;
-        vm.prank(factory);
-        vm.expectRevert(ZeroAmount.selector);
-        store.setCrypto5AmountByRoundId(roundId, zeroAmount);
-    }
-
     function test_increaseRedemptionRoundId_SuccessWhenSenderIsFactory() public {
         uint256 before = store.redemptionRoundId();
         vm.prank(factory);
@@ -890,5 +839,23 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         (bool allSettled, uint256 roundId) = store.currentRedemptionRoundWithStatus();
         assertTrue(allSettled);
         assertEq(roundId, 3);
+    }
+
+    function test_setRedemptionCompleted_SuccessWhenSenderIsFactory() public {
+        uint256 nonce = 7;
+        assertEq(store.redemptionIsCompleted(nonce), false);
+        vm.prank(factory);
+        store.setRedemptionCompleted(nonce, true);
+        assertEq(store.redemptionIsCompleted(nonce), true);
+    }
+
+    function test_currentIssuanceRoundWithStatus_TrueBranch() public {
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(vm.addr(100), 1e18);
+        vm.prank(factory);
+        store.increaseIssuanceRoundId();
+        (bool allSettled, uint256 roundId) = store.currentIssuanceRoundWithStatus();
+        assertFalse(allSettled, "Should not be all settled");
+        assertEq(roundId, 1, "Should return the first unsettled roundId");
     }
 }

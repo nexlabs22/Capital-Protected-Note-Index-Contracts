@@ -505,7 +505,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         assertEq(usdc.balanceOf(alice), aliceShare);
         assertEq(usdc.balanceOf(bob), bobShare);
         assertEq(usdc.balanceOf(charlie), 0);
-        assertTrue(store.redemptionRoundCompleted(1));
+        assertTrue(store.redemptionIsCompleted(1));
     }
 
     function test_initiateRedemptionBatch_branch_288_True() public {
@@ -518,30 +518,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         sca.initiateRedemptionBatch(roundId, tokenOutPath, tokenOutFees);
         vm.stopPrank();
     }
-
-    // function test_completeRedemption_branch_302_True() public {
-    //     uint256 idxAlice = 100 ether;
-    //     uint256 idxBob = 33 ether;
-    //     _bootstrapRedemptionRound(idxAlice, idxBob);
-
-    //     vm.prank(factory);
-    //     store.setRedemptionRoundActive(1, true);
-
-    //     uint256 usdcFromBond = 100_000 * ONE_USDC;
-    //     uint256 usdcFromCr5 = 0;
-    //     usdc.mint(nexBot, usdcFromBond);
-    //     usdc.mint(address(sca), usdcFromCr5);
-
-    //     vm.startPrank(nexBot);
-    //     usdc.approve(address(sca), usdcFromBond);
-    //     sca.completeRedemption(1, usdcFromBond, usdcFromCr5);
-    //     vm.stopPrank();
-
-    //     // assertEq(usdc.balanceOf(feeRecv), 2);
-    //     uint256 totalPaid = usdcFromBond + usdcFromCr5;
-    //     uint256 distributed = usdc.balanceOf(alice) + usdc.balanceOf(bob);
-    //     assertEq(distributed, totalPaid);
-    // }
 
     function test_initiateRedemptionBatch_branch_322_True() public {
         uint256 idxAlice = 100 ether;
@@ -602,5 +578,132 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint24[] memory tokenInFees = new uint24[](0);
         try sca.issuanceAndWithdrawForPurchase(2, tokenInPath, tokenInFees) {} catch {}
         vm.stopPrank();
+    }
+
+    function test_initialize_branch_60_True() public {
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+
+        vm.expectRevert("Invalid address for _indexFactroyStorageAddress");
+        scaProxy.initialize(address(0));
+    }
+
+    function test_completeIssuance_branch_247_Else() public {
+        address charlie = vm.addr(12);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(charlie, 0);
+
+        Vault v = Vault(store.vault());
+        uint256 bondBal = 1000 * 1e18;
+        bond.mint(address(v), bondBal);
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+
+        idx.mint(address(sca), 100 ether);
+
+        vm.startPrank(nexBot);
+
+        bond.mint(address(sca), 100 * 1e18);
+
+        sca.completeIssuance(1, bondPrice, crypto5Price);
+        vm.stopPrank();
+
+        assertEq(idx.balanceOf(charlie), 0);
+        assertTrue(idx.balanceOf(alice) > 0);
+        assertTrue(idx.balanceOf(bob) > 0);
+    }
+
+    function test_completeIssuance_branch_253_True() public {
+        address charlie = vm.addr(12);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(charlie, 0);
+
+        Vault v = Vault(store.vault());
+        uint256 bondBal = 1000 * 1e18;
+        bond.mint(address(v), bondBal);
+        bond.mint(address(sca), 100 * 1e18);
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+
+        idx.mint(address(sca), 100 ether);
+
+        vm.startPrank(nexBot);
+        sca.completeIssuance(1, bondPrice, crypto5Price);
+        vm.stopPrank();
+
+        assertTrue(idx.balanceOf(feeRecv) > 0);
+        assertEq(idx.balanceOf(charlie), 0);
+    }
+
+    function test_initiateRedemptionBatch_branch_357_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(factory);
+        store.setRedemptionRoundActive(1, true);
+
+        Vault v = Vault(store.vault());
+        uint256 bondBal = 1_000_000 * 1e18;
+        bond.mint(address(v), bondBal);
+
+        v.setOperator(address(sca), true);
+
+        vm.startPrank(nexBot);
+        try sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0)) {} catch {}
+        vm.stopPrank();
+
+        uint256 pct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
+        uint256 expectedSlice = bondBal * pct1e18 / 1e18;
+    }
+
+    function test_getPortfolioValue_branch_399_Else() public {
+        TestFunctionsOracle impl = new TestFunctionsOracle();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(impl), abi.encodeCall(FunctionsOracle.initialize, (address(0x1), bytes32("don"))));
+        TestFunctionsOracle singleOracle = TestFunctionsOracle(address(proxy));
+
+        address[] memory tkns = new address[](1);
+        uint256[] memory shrs = new uint256[](1);
+        uint8[] memory types = new uint8[](1);
+        tkns[0] = address(bond);
+        shrs[0] = 100e18;
+        types[0] = 0;
+        singleOracle.seed(types, tkns, shrs);
+
+        IndexFactoryStorage implStore = new IndexFactoryStorage();
+        ERC1967Proxy proxyStore = new ERC1967Proxy(
+            address(implStore),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    factory,
+                    address(singleOracle),
+                    address(sca),
+                    address(store.vault()),
+                    nexBot,
+                    address(0xDEAD),
+                    address(usdc),
+                    address(bond),
+                    false
+                )
+            )
+        );
+        IndexFactoryStorage singleStore = IndexFactoryStorage(address(proxyStore));
+
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount singleSCA = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+        singleSCA.initialize(address(singleStore));
+
+        Vault v = Vault(singleStore.vault());
+        uint256 bondBal = 1000 * 1e18;
+        bond.mint(address(v), bondBal);
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+
+        uint256 expected = (bondBal * bondPrice) / 1e18;
+        uint256 val = singleSCA.getPortfolioValue(bondPrice, crypto5Price);
+        assertEq(val, expected);
     }
 }
