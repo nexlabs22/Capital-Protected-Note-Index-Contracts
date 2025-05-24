@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/factory/FunctionsOracle.sol";
+import "./OlympixUnitTest.sol";
 
 contract OracleHarness is FunctionsOracle {
     function exposed_initData(uint8[] memory types, address[] calldata tokens, uint256[] calldata shares) external {
@@ -11,7 +12,7 @@ contract OracleHarness is FunctionsOracle {
     }
 }
 
-contract FunctionsOracleProxyTest is Test {
+contract FunctionsOracleTest is OlympixUnitTest("FunctionsOracle") {
     address owner = vm.addr(1);
     address operator = vm.addr(2);
     address balancer = vm.addr(3);
@@ -157,5 +158,14 @@ contract FunctionsOracleProxyTest is Test {
 
         assertEq(oracle.currentList(1), tokenB);
         assertEq(oracle.totalCurrentList(), 2);
+    }
+
+    function test_initialize_revertOnZeroRouterAddress() public {
+        OracleHarness impl = new OracleHarness();
+        bytes memory initData = abi.encodeCall(FunctionsOracle.initialize, (address(0), bytes32("don")));
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), "");
+        OracleHarness testOracle = OracleHarness(payable(address(proxy)));
+        vm.expectRevert("invalid functions router address");
+        testOracle.initialize(address(0), bytes32("don"));
     }
 }

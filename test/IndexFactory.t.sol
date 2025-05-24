@@ -540,4 +540,30 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.expectRevert(bytes("IDX already deployed"));
         factory.cancelRedemption(nonce);
     }
+
+    function test_cancelIssuance_branch_issuanceRoundActive_false() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.prank(alice);
+        uint256 nonce = factory.issuanceIndexToken(amt);
+
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(1, false);
+        assertEq(store.issuanceRoundActive(1), false);
+
+        vm.prank(alice);
+        vm.expectRevert(bytes("round already processed"));
+        factory.cancelIssuance(nonce);
+    }
+
+    function test_cancelRedemption_branch_onlyRequesterCanCancel() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption(idxAmount);
+
+        vm.prank(bob);
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelRedemption(nonce);
+    }
 }

@@ -858,4 +858,18 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertFalse(allSettled, "Should not be all settled");
         assertEq(roundId, 1, "Should return the first unsettled roundId");
     }
+
+    function test_currentRedemptionRoundWithStatus_TrueBranch() public {
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(vm.addr(100), 1e18);
+        vm.prank(factory);
+        store.setRedemptionRoundActive(1, true);
+        vm.prank(factory);
+        store.increaseRedemptionRoundId();
+
+        (bool allSettled, uint256 roundId) = store.currentRedemptionRoundWithStatus();
+
+        assertFalse(allSettled, "Should not be all settled");
+        assertEq(roundId, 1, "Should return the first unsettled roundId");
+    }
 }

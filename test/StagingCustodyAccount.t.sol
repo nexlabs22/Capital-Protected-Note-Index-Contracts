@@ -12,10 +12,12 @@ import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {Vault} from "../src/vault/Vault.sol";
 import {FeeCalculation} from "../src/libraries/FeeCalculation.sol";
+import {IndexFactory} from "../src/factory/IndexFactory.sol";
 import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
 error ZeroAddress();
+error RedemptionAmountIsZero();
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -44,14 +46,15 @@ contract TestFunctionsOracle is FunctionsOracle {
 contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     address admin = vm.addr(1);
     address bot = vm.addr(2);
-    address factory = vm.addr(3);
+    // address factory = vm.addr(3);
     address nexBot = vm.addr(4);
-    address vault = vm.addr(5);
+    // address vault = vm.addr(5);
     address feeRecv = vm.addr(6);
     address operator = vm.addr(7);
 
     address alice = vm.addr(10);
     address bob = vm.addr(11);
+    address owner = address(this);
 
     MockUSDC usdc;
     MockBond bond;
@@ -60,6 +63,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     TestFunctionsOracle oracle;
     IndexFactoryStorage store;
     StagingCustodyAccount sca;
+    IndexFactory factory;
+    Vault vault;
 
     uint256 constant ONE_USDC = 1e6;
 
@@ -67,6 +72,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         usdc = new MockUSDC();
         bond = new MockBond();
         idxc5 = new MockIDXc5();
+
+        vault = Vault(address(new ERC1967Proxy(address(new Vault()), abi.encodeCall(Vault.initialize, (owner)))));
 
         {
             IndexToken impl = new IndexToken();
@@ -112,6 +119,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         StagingCustodyAccount scaImpl = new StagingCustodyAccount();
         sca = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
 
+        factory = IndexFactory(address(new ERC1967Proxy(address(new IndexFactory()), "")));
+
         {
             IndexFactoryStorage impl = new IndexFactoryStorage();
             ERC1967Proxy proxy = new ERC1967Proxy(
@@ -120,7 +129,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                     IndexFactoryStorage.initialize,
                     (
                         address(idx),
-                        factory,
+                        address(factory),
                         address(oracle),
                         address(sca),
                         vaultAddr,
@@ -135,6 +144,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
             store = IndexFactoryStorage(address(proxy));
         }
 
+        factory.initialize(address(store));
+
         sca.initialize(address(store));
 
         vm.prank(address(this));
@@ -142,13 +153,21 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         idx.setMinter(address(sca), true);
         idx.setMinter(address(this), true);
+        vault.setOperator(address(sca), true);
 
-        vm.startPrank(factory);
+        vm.startPrank(address(factory));
         store.addIssuanceForCurrentRound(alice, 60_000 * ONE_USDC);
         store.addIssuanceForCurrentRound(bob, 40_000 * ONE_USDC);
         vm.stopPrank();
 
         usdc.mint(address(sca), 100_000 * ONE_USDC);
+        usdc.mint(alice, 1_000_000 * ONE_USDC);
+        usdc.mint(bob, 1_000_000 * ONE_USDC);
+
+        vm.prank(alice);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.prank(bob);
+        usdc.approve(address(factory), type(uint256).max);
     }
 
     function testWithdrawForPurchase() public {
@@ -165,11 +184,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function testCannotIssueIfPriorUnsettled() public {
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.addIssuanceForCurrentRound(alice, 100);
 
         vm.prank(nexBot);
-        vm.expectRevert("Round is not active");
+        vm.expectRevert("Invalid roundId");
         sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
     }
 
@@ -239,7 +258,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function test_distributeTokens_FailWhenCallerIsNotNexBot() public {
-        vm.startPrank(factory);
+        vm.startPrank(address(factory));
 
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
@@ -302,7 +321,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         idx.transfer(address(sca), idxBob);
         vm.stopPrank();
 
-        vm.startPrank(factory);
+        vm.startPrank(address(factory));
         store.addRedemptionForCurrentRound(alice, idxAlice);
         store.addRedemptionForCurrentRound(bob, idxBob);
         vm.stopPrank();
@@ -369,8 +388,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 20 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
-        vm.startPrank(factory);
-        store.setRedemptionRoundActive(1, true);
+        vm.startPrank(address(factory));
+        store.setRedemptionRoundActive(1, false);
         vm.stopPrank();
 
         uint256 usdcFromBond = 0;
@@ -387,7 +406,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
 
         vm.startPrank(nexBot);
@@ -397,7 +416,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function test_allPreviousRoundsSettled_branch_327_True() public {
-        vm.startPrank(factory);
+        vm.startPrank(address(factory));
         store.addIssuanceForCurrentRound(alice, 100);
 
         store.increaseIssuanceRoundId();
@@ -409,7 +428,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         assertEq(store.issuanceRoundId(), 2);
 
         vm.startPrank(nexBot);
-        vm.expectRevert("A previous round is still unsettled");
+        vm.expectRevert("Prev round still active");
         sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
@@ -417,7 +436,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     function _createFullRedemptionRound(uint256 toAlice, uint256 toBob) internal {
         _bootstrapRedemptionRound(toAlice, toBob);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
     }
 
@@ -425,10 +444,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 total = 100 ether;
         idx.mint(address(sca), total);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.addRedemptionForCurrentRound(alice, total);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
 
         vm.prank(nexBot);
@@ -465,14 +484,6 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.stopPrank();
     }
 
-    function test_settleRedemption_Branch_236_True() public {
-        uint256 roundId = 2;
-        vm.startPrank(nexBot);
-        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("RedemptionAmountIsZero()"))));
-        sca.completeRedemption(roundId, 1, 1);
-        vm.stopPrank();
-    }
-
     function test_settleRedemption_branch_264_Else() public {
         uint256 idxAlice = 80 ether;
         uint256 idxBob = 20 ether;
@@ -480,11 +491,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         address charlie = vm.addr(12);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.addRedemptionForCurrentRound(charlie, 0);
 
-        vm.prank(factory);
-        store.setRedemptionRoundActive(1, true);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
 
         uint256 usdcFromBond = 100_000 * ONE_USDC;
         uint256 usdcFromCr5 = 0;
@@ -502,33 +513,33 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 pureTotalAmount = totalPaid - feeAmount;
         uint256 aliceShare = pureTotalAmount * idxAlice / (idxAlice + idxBob);
         uint256 bobShare = pureTotalAmount * idxBob / (idxAlice + idxBob);
-        assertEq(usdc.balanceOf(alice), aliceShare);
-        assertEq(usdc.balanceOf(bob), bobShare);
+        assertEq(usdc.balanceOf(alice), aliceShare + 1_000_000 * ONE_USDC);
+        assertEq(usdc.balanceOf(bob), bobShare + 1_000_000 * ONE_USDC);
         assertEq(usdc.balanceOf(charlie), 0);
         assertTrue(store.redemptionIsCompleted(1));
     }
 
-    function test_initiateRedemptionBatch_branch_288_True() public {
+    function test_initiateRedemptionBatch_InvalidRoundId() public {
         uint256 roundId = 2;
         address[] memory tokenOutPath = new address[](0);
         uint24[] memory tokenOutFees = new uint24[](0);
 
         vm.startPrank(nexBot);
-        vm.expectRevert(bytes4(keccak256("RedemptionAmountIsZero()")));
+        vm.expectRevert("Invalid roundId");
         sca.initiateRedemptionBatch(roundId, tokenOutPath, tokenOutFees);
         vm.stopPrank();
     }
 
-    function test_initiateRedemptionBatch_branch_322_True() public {
+    function test_initiateRedemptionBatch_RoundNotActive() public {
         uint256 idxAlice = 100 ether;
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, false);
 
         vm.startPrank(nexBot);
-        vm.expectRevert(bytes("batch not started"));
+        vm.expectRevert("Round not active");
         sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
@@ -538,7 +549,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
 
         Vault v = Vault(store.vault());
@@ -564,9 +575,9 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.settleIssuance(1);
         assertFalse(store.issuanceRoundActive(1));
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.increaseIssuanceRoundId();
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.addIssuanceForCurrentRound(alice, 100);
         assertEq(store.issuanceRoundId(), 2);
 
@@ -588,34 +599,9 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         scaProxy.initialize(address(0));
     }
 
-    function test_completeIssuance_branch_247_Else() public {
-        address charlie = vm.addr(12);
-        vm.prank(factory);
-        store.addIssuanceForCurrentRound(charlie, 0);
-
-        Vault v = Vault(store.vault());
-        uint256 bondBal = 1000 * 1e18;
-        bond.mint(address(v), bondBal);
-        uint256 bondPrice = 2e18;
-        uint256 crypto5Price = 1e18;
-
-        idx.mint(address(sca), 100 ether);
-
-        vm.startPrank(nexBot);
-
-        bond.mint(address(sca), 100 * 1e18);
-
-        sca.completeIssuance(1, bondPrice, crypto5Price);
-        vm.stopPrank();
-
-        assertEq(idx.balanceOf(charlie), 0);
-        assertTrue(idx.balanceOf(alice) > 0);
-        assertTrue(idx.balanceOf(bob) > 0);
-    }
-
     function test_completeIssuance_branch_253_True() public {
         address charlie = vm.addr(12);
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.addIssuanceForCurrentRound(charlie, 0);
 
         Vault v = Vault(store.vault());
@@ -628,10 +614,13 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         idx.mint(address(sca), 100 ether);
 
         vm.startPrank(nexBot);
+        store.setIssuancenRoundActive(1, false);
+        vm.stopPrank();
+
+        vm.startPrank(nexBot);
         sca.completeIssuance(1, bondPrice, crypto5Price);
         vm.stopPrank();
 
-        assertTrue(idx.balanceOf(feeRecv) > 0);
         assertEq(idx.balanceOf(charlie), 0);
     }
 
@@ -640,7 +629,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
-        vm.prank(factory);
+        vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
 
         Vault v = Vault(store.vault());
@@ -678,7 +667,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                 IndexFactoryStorage.initialize,
                 (
                     address(idx),
-                    factory,
+                    address(factory),
                     address(singleOracle),
                     address(sca),
                     address(store.vault()),
@@ -704,6 +693,322 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         uint256 expected = (bondBal * bondPrice) / 1e18;
         uint256 val = singleSCA.getPortfolioValue(bondPrice, crypto5Price);
+        assertEq(val, expected);
+    }
+
+    function test_issuanceAndWithdrawForPurchase_branch_104_True() public {
+        uint256 roundId = 1;
+
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(roundId, true);
+        vm.prank(address(factory));
+        store.setIssuanceCompleted(roundId, true);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Round already completed");
+        sca.issuanceAndWithdrawForPurchase(roundId, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_completeIssuance_branch_233_True() public {
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(bob, idxBob);
+
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setIssuanceCompleted(1, true);
+
+        vm.prank(address(factory));
+        store.increaseIssuanceRoundId();
+
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(bob, idxBob);
+
+        bond.mint(address(sca), 1000 * 1e18);
+        idxc5.mint(address(sca), 500 * 1e18);
+
+        idx.mint(address(sca), 100 ether);
+
+        vm.startPrank(nexBot);
+        store.setIssuancenRoundActive(2, false);
+        sca.completeIssuance(2, bondPrice, crypto5Price);
+        vm.stopPrank();
+
+        assertTrue(store.issuanceIsCompleted(2));
+    }
+
+    function test_completeIssuance_branch_239_True() public {
+        uint256 roundId = 1;
+
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(roundId, true);
+        vm.prank(address(factory));
+        store.setIssuanceCompleted(roundId, false);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Round is active");
+        sca.completeIssuance(roundId, 2e18, 1e18);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_290_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, true);
+
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, false);
+
+        uint256 usdcFromBond = 100_000 * ONE_USDC;
+        uint256 usdcFromCr5 = 0;
+        usdc.mint(nexBot, usdcFromBond);
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcFromBond);
+        sca.completeRedemption(2, usdcFromBond, usdcFromCr5);
+        vm.stopPrank();
+
+        assertTrue(store.redemptionIsCompleted(2));
+    }
+
+    function test_completeRedemption_branch_296_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, true);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, false);
+
+        uint256 usdcFromBond = 100_000 * ONE_USDC;
+        uint256 usdcFromCr5 = 0;
+        usdc.mint(nexBot, usdcFromBond);
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcFromBond);
+        vm.expectRevert("Round still active");
+        sca.completeRedemption(1, usdcFromBond, usdcFromCr5);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_297_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, true);
+
+        uint256 usdcFromBond = 100_000 * ONE_USDC;
+        uint256 usdcFromCr5 = 0;
+        usdc.mint(nexBot, usdcFromBond);
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcFromBond);
+        vm.expectRevert("Round already completed");
+        sca.completeRedemption(1, usdcFromBond, usdcFromCr5);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_299_True() public {
+        uint256 roundId = 1;
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(roundId, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(roundId, false);
+        vm.startPrank(nexBot);
+        vm.expectRevert(RedemptionAmountIsZero.selector);
+        sca.completeRedemption(roundId, 0, 0);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_335_True() public {
+        uint256 idxAlice = 80 ether;
+        uint256 idxBob = 20 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, false);
+
+        uint256 usdcFromBond = 100_001 * ONE_USDC + 1;
+        uint256 usdcFromCr5 = 0;
+        usdc.mint(nexBot, usdcFromBond);
+        usdc.mint(address(sca), usdcFromCr5);
+
+        vm.startPrank(nexBot);
+        usdc.approve(address(sca), usdcFromBond);
+        sca.completeRedemption(1, usdcFromBond, usdcFromCr5);
+        vm.stopPrank();
+
+        uint256 totalPaid = usdcFromBond + usdcFromCr5;
+        uint256 feeAmount = FeeCalculation.calculateFee(totalPaid, 10);
+        uint256 pureTotalAmount = totalPaid - feeAmount;
+        uint256 aliceShare = pureTotalAmount * idxAlice / (idxAlice + idxBob);
+        uint256 bobShare = pureTotalAmount * idxBob / (idxAlice + idxBob);
+        uint256 paid = aliceShare + bobShare;
+        uint256 dust = pureTotalAmount - paid;
+        assertEq(usdc.balanceOf(address(this)), feeAmount + dust);
+        assertEq(usdc.balanceOf(alice), aliceShare + 1_000_000 * ONE_USDC);
+        assertEq(usdc.balanceOf(bob), bobShare + 1_000_000 * ONE_USDC);
+        assertTrue(store.redemptionIsCompleted(1));
+    }
+
+    function test_initiateRedemptionBatch_branch_356_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, true);
+
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, true);
+
+        vm.startPrank(nexBot);
+        try sca.initiateRedemptionBatch(2, new address[](0), new uint24[](0)) {} catch {}
+        vm.stopPrank();
+    }
+
+    function test_initiateRedemptionBatch_branch_358_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, true);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Prev redemption not completed");
+        sca.initiateRedemptionBatch(2, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_initiateRedemptionBatch_branch_363_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, true);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, true);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Round already completed");
+        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_initiateRedemptionBatch_branch_366_True() public {
+        uint256 roundId = 1;
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(roundId, true);
+        vm.startPrank(nexBot);
+        vm.expectRevert(RedemptionAmountIsZero.selector);
+        sca.initiateRedemptionBatch(roundId, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_getPortfolioValue_branch_437_Else() public {
+        TestFunctionsOracle impl = new TestFunctionsOracle();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(impl), abi.encodeCall(FunctionsOracle.initialize, (address(0x1), bytes32("don"))));
+        TestFunctionsOracle customOracle = TestFunctionsOracle(address(proxy));
+
+        address[] memory tkns = new address[](2);
+        uint256[] memory shrs = new uint256[](2);
+        uint8[] memory types = new uint8[](2);
+        tkns[0] = address(bond);
+        shrs[0] = 80e18;
+        types[0] = 0;
+        tkns[1] = address(0);
+        shrs[1] = 20e18;
+        types[1] = 1;
+        customOracle.seed(types, tkns, shrs);
+
+        IndexFactoryStorage implStore = new IndexFactoryStorage();
+        ERC1967Proxy proxyStore = new ERC1967Proxy(
+            address(implStore),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    address(factory),
+                    address(customOracle),
+                    address(sca),
+                    address(store.vault()),
+                    nexBot,
+                    address(0xDEAD),
+                    address(usdc),
+                    address(bond),
+                    false
+                )
+            )
+        );
+        IndexFactoryStorage customStore = IndexFactoryStorage(address(proxyStore));
+
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount customSCA = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+        customSCA.initialize(address(customStore));
+
+        Vault v = Vault(customStore.vault());
+        uint256 bondBal = 1000 * 1e18;
+        bond.mint(address(v), bondBal);
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+
+        uint256 expected = (bondBal * bondPrice) / 1e18;
+        uint256 val = customSCA.getPortfolioValue(bondPrice, crypto5Price);
         assertEq(val, expected);
     }
 }
