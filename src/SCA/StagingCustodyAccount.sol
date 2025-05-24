@@ -85,10 +85,17 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address[] calldata _tokenInPath,
         uint24[] calldata _tokenInFees
     ) public onlyOwnerOrOperator {
+        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
+            require(factoryStorage.issuanceIsCompleted(prev), "Prev round not completed");
+        }
         require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
-        require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
+        require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
+        // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
 
-        factoryStorage.setRedemptionRoundActive(roundId, false);
+        factoryStorage.setIssuancenRoundActive(roundId, false);
         uint256 balance = usdc.balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
@@ -170,6 +177,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
         require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
+            require(factoryStorage.issuanceIsCompleted(prev), "Prev round not completed");
+        }
+        require(!factoryStorage.issuanceRoundActive(roundId), "Round is active");
+        require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
 
         uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
 
@@ -209,6 +224,15 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     }
 
     function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromCr5) external onlyNexBot {
+        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
+            require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
+        }
+        require(!factoryStorage.redemptionRoundActive(roundId), "Round still active");
+        require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
+
         if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
             revert RedemptionAmountIsZero();
         }
@@ -252,6 +276,15 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         nonReentrant
         onlyOwnerOrOperator
     {
+        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
+            require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
+        }
+        require(factoryStorage.redemptionRoundActive(roundId), "Round not active");
+        require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
+
         uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);
         if (totalIdxThisRound == 0) revert RedemptionAmountIsZero();
         if (!factoryStorage.redemptionRoundActive(roundId)) {

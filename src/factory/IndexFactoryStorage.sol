@@ -183,6 +183,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         redemptionRoundActive[roundId] = flag;
     }
 
+    function setIssuancenRoundActive(uint256 roundId, bool flag) external onlyFactory {
+        issuanceRoundActive[roundId] = flag;
+    }
+
     function addIssuanceForCurrentRound(address account, uint256 amount) external onlyFactory {
         if (!issuanceRoundActive[issuanceRoundId]) {
             issuanceRoundActive[issuanceRoundId] = true;
