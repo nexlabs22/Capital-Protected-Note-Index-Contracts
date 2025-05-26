@@ -358,5 +358,65 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return (true, redemptionRoundId);
     }
 
+    /**
+     * @dev First issuance round that can call `issuanceAndWithdrawForPurchase`.
+     */
+    function nextIssuanceRoundForRequestIssuance() external view returns (uint256 roundId) {
+        uint256 last = issuanceRoundId;
+        for (uint256 id = 1; id <= last; ++id) {
+            bool ok = issuanceRoundActive[id] && !issuanceIsCompleted[id];
+            if (ok && _prevIssuanceSettled(id)) return id;
+        }
+        return 0;
+    }
+
+    /**
+     * @dev First issuance round that can call `completeIssuance`.
+     */
+    function nextIssuanceRoundForCompleteIssuance() external view returns (uint256 roundId) {
+        uint256 last = issuanceRoundId;
+        for (uint256 id = 1; id <= last; ++id) {
+            bool ok = !issuanceRoundActive[id] && !issuanceIsCompleted[id];
+            if (ok && _prevIssuanceSettled(id)) return id;
+        }
+        return 0;
+    }
+
+    /**
+     * @dev First redemption round that can call `initiateRedemptionBatch`.
+     */
+    function nextRedemptionRoundForRequestRedemption() external view returns (uint256 roundId) {
+        uint256 last = redemptionRoundId;
+        for (uint256 id = 1; id <= last; ++id) {
+            bool ok = redemptionRoundActive[id] && !redemptionIsCompleted[id];
+            if (ok && _prevRedemptionSettled(id)) return id;
+        }
+        return 0;
+    }
+
+    /**
+     * @dev First redemption round that can call `completeRedemption`.
+     */
+    function nextRedemptionRoundForCompleteRedemption() external view returns (uint256 roundId) {
+        uint256 last = redemptionRoundId;
+        for (uint256 id = 1; id <= last; ++id) {
+            bool ok = !redemptionRoundActive[id] && !redemptionIsCompleted[id];
+            if (ok && _prevRedemptionSettled(id)) return id;
+        }
+        return 0;
+    }
+
+    function _prevIssuanceSettled(uint256 id) internal view returns (bool) {
+        if (id == 1) return true; // no previous round
+        uint256 p = id - 1;
+        return !issuanceRoundActive[p] && issuanceIsCompleted[p];
+    }
+
+    function _prevRedemptionSettled(uint256 id) internal view returns (bool) {
+        if (id == 1) return true;
+        uint256 p = id - 1;
+        return !redemptionRoundActive[p] && redemptionIsCompleted[p];
+    }
+
     uint256[50] private __gap;
 }
