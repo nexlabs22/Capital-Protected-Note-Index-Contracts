@@ -189,14 +189,14 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.prank(nexBot);
         vm.expectRevert("Invalid roundId");
-        sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
+        sca.requestIssuance(2, new address[](0), new uint24[](0));
     }
 
     function test_issuanceAndWithdrawForPurchase_FailWhenSenderIsNotOwnerOrOperatorOrNexBot() public {
         vm.startPrank(alice);
 
         vm.expectRevert("Caller is not the owner or operator");
-        sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
+        sca.requestIssuance(1, new address[](0), new uint24[](0));
 
         vm.stopPrank();
     }
@@ -349,7 +349,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(alice);
         vm.expectRevert("Caller is not the owner or operator");
-        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        sca.requestRedemption(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -372,7 +372,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("USDC Balance is Zero!");
-        sca.issuanceAndWithdrawForPurchase(1, _tokenInPath, _tokenInFees);
+        sca.requestIssuance(1, _tokenInPath, _tokenInFees);
         vm.stopPrank();
     }
 
@@ -411,7 +411,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
 
-        try sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0)) {} catch {}
+        try sca.requestRedemption(1, new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
     }
 
@@ -429,7 +429,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Prev round still active");
-        sca.issuanceAndWithdrawForPurchase(2, new address[](0), new uint24[](0));
+        sca.requestIssuance(2, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -452,7 +452,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.prank(nexBot);
         vm.expectRevert("IDX supply is zero");
-        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        sca.requestRedemption(1, new address[](0), new uint24[](0));
     }
 
     function test_rescue_RevertWhenTokenIsZeroAddress_branch_129_True() public {
@@ -526,7 +526,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Invalid roundId");
-        sca.initiateRedemptionBatch(roundId, tokenOutPath, tokenOutFees);
+        sca.requestRedemption(roundId, tokenOutPath, tokenOutFees);
         vm.stopPrank();
     }
 
@@ -540,7 +540,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Round not active");
-        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        sca.requestRedemption(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -556,7 +556,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         bond.mint(address(v), 1_000_000 * 1e18);
 
         vm.startPrank(nexBot);
-        try sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0)) {} catch {}
+        try sca.requestRedemption(1, new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
     }
 
@@ -587,7 +587,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         address[] memory tokenInPath = new address[](0);
         uint24[] memory tokenInFees = new uint24[](0);
-        try sca.issuanceAndWithdrawForPurchase(2, tokenInPath, tokenInFees) {} catch {}
+        try sca.requestIssuance(2, tokenInPath, tokenInFees) {} catch {}
         vm.stopPrank();
     }
 
@@ -639,7 +639,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         v.setOperator(address(sca), true);
 
         vm.startPrank(nexBot);
-        try sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0)) {} catch {}
+        try sca.requestRedemption(1, new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
 
         uint256 pct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
@@ -706,7 +706,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Round already completed");
-        sca.issuanceAndWithdrawForPurchase(roundId, new address[](0), new uint24[](0));
+        sca.requestIssuance(roundId, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -906,7 +906,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.setRedemptionRoundActive(2, true);
 
         vm.startPrank(nexBot);
-        try sca.initiateRedemptionBatch(2, new address[](0), new uint24[](0)) {} catch {}
+        try sca.requestRedemption(2, new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
     }
 
@@ -929,7 +929,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Prev redemption not completed");
-        sca.initiateRedemptionBatch(2, new address[](0), new uint24[](0));
+        sca.requestRedemption(2, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -945,7 +945,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
         vm.startPrank(nexBot);
         vm.expectRevert("Round already completed");
-        sca.initiateRedemptionBatch(1, new address[](0), new uint24[](0));
+        sca.requestRedemption(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 
@@ -955,7 +955,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.setRedemptionRoundActive(roundId, true);
         vm.startPrank(nexBot);
         vm.expectRevert(RedemptionAmountIsZero.selector);
-        sca.initiateRedemptionBatch(roundId, new address[](0), new uint24[](0));
+        sca.requestRedemption(roundId, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 

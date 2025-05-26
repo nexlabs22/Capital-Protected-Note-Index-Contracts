@@ -397,7 +397,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(usdc.balanceOf(address(sca)), inAmt);
 
         vm.prank(nexBot);
-        sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
+        sca.requestIssuance(1, new address[](0), new uint24[](0));
 
         uint256 toBot = inAmt * 80 / 100;
         assertEq(usdc.balanceOf(nexBot), toBot);
@@ -444,7 +444,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.issuanceIndexToken(cAmt);
 
         vm.prank(nexBot);
-        sca.issuanceAndWithdrawForPurchase(1, new address[](0), new uint24[](0));
+        sca.requestIssuance(1, new address[](0), new uint24[](0));
 
         bond.mint(address(sca), 77_000 ether);
 

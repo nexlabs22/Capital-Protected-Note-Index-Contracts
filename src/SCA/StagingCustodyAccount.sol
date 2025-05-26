@@ -80,55 +80,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         _disableInitializers();
     }
 
-    function issuanceAndWithdrawForPurchase(
-        uint256 roundId,
-        address[] calldata _tokenInPath,
-        uint24[] calldata _tokenInFees
-    ) public onlyOwnerOrOperator {
-        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
-        uint256 prev = roundId - 1;
-        if (roundId > 1) {
-            require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
-            require(factoryStorage.issuanceIsCompleted(prev), "Prev round not completed");
-        }
-        require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
-        require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
-        // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
-
-        factoryStorage.setIssuancenRoundActive(roundId, false);
-        uint256 balance = usdc.balanceOf(address(this));
-        require(balance > 0, "USDC Balance is Zero!");
-
-        uint256 usdcAmountForBond;
-        uint256 usdcAmountForCrypto5;
-
-        for (uint256 i; i < functionsOracle.totalCurrentList(); ++i) {
-            address token = functionsOracle.currentList(i);
-            uint256 share = functionsOracle.tokenCurrentMarketShare(token);
-            uint256 slice = (balance * share) / 100e18;
-
-            if (functionsOracle.tokenAssetType(token) == 1) {
-                usdcAmountForCrypto5 += slice;
-            } else {
-                usdcAmountForBond += slice;
-            }
-        }
-
-        uint256 dust = balance - usdcAmountForCrypto5 - usdcAmountForBond;
-        if (dust > 0) usdcAmountForBond += dust;
-
-        if (usdcAmountForCrypto5 > 0) {
-            issuanceCrypto5(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
-        }
-
-        if (usdcAmountForBond > 0) {
-            withdrawForPurchase(roundId, usdcAmountForBond);
-        }
-
-        factory.increaseCurrentRoundId();
-        factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
-    }
-
     function withdrawForPurchase(uint256 roundId, uint256 amount) public onlyOwnerOrOperator nonReentrant {
         require(factoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
         if (amount == 0) revert ZeroAmount();
@@ -173,6 +124,54 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     ) public onlyOwnerOrOperator {
         ICrypto5Factory(crypto5FactoryAddress).redemption(amountIn, _tokenOut, _tokenOutPath, _tokenOutFees);
         emit RedemptionCrpyto5(amountIn, block.timestamp);
+    }
+
+    function requestIssuance(uint256 roundId, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
+        public
+        onlyOwnerOrOperator
+    {
+        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
+            require(factoryStorage.issuanceIsCompleted(prev), "Prev round not completed");
+        }
+        require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
+        require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
+        // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
+
+        factoryStorage.setIssuancenRoundActive(roundId, false);
+        uint256 balance = usdc.balanceOf(address(this));
+        require(balance > 0, "USDC Balance is Zero!");
+
+        uint256 usdcAmountForBond;
+        uint256 usdcAmountForCrypto5;
+
+        for (uint256 i; i < functionsOracle.totalCurrentList(); ++i) {
+            address token = functionsOracle.currentList(i);
+            uint256 share = functionsOracle.tokenCurrentMarketShare(token);
+            uint256 slice = (balance * share) / 100e18;
+
+            if (functionsOracle.tokenAssetType(token) == 1) {
+                usdcAmountForCrypto5 += slice;
+            } else {
+                usdcAmountForBond += slice;
+            }
+        }
+
+        uint256 dust = balance - usdcAmountForCrypto5 - usdcAmountForBond;
+        if (dust > 0) usdcAmountForBond += dust;
+
+        if (usdcAmountForCrypto5 > 0) {
+            issuanceCrypto5(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
+        }
+
+        if (usdcAmountForBond > 0) {
+            withdrawForPurchase(roundId, usdcAmountForBond);
+        }
+
+        factory.increaseCurrentRoundId();
+        factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
     }
 
     function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
@@ -271,7 +270,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit RedemptionSettled(roundId, usdcForDistribute, block.timestamp);
     }
 
-    function initiateRedemptionBatch(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
+    function requestRedemption(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
         external
         nonReentrant
         onlyOwnerOrOperator
