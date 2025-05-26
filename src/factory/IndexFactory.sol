@@ -13,6 +13,8 @@ import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {FeeCalculation} from "../libraries/FeeCalculation.sol";
+import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {FeeVault} from "../vault/FeeVault.sol";
 
 error ZeroAmount();
 
@@ -20,7 +22,9 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     using SafeERC20 for IERC20;
 
     IndexFactoryStorage factoryStorage;
+    FeeVault feeVault;
 
+    // address feeVault;
     uint256 public issuanceNonce;
     uint256 public redemptionNonce;
 
@@ -68,9 +72,12 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         _;
     }
 
-    function initialize(address _indexFactoryStorage) external initializer {
+    function initialize(address _indexFactoryStorage, address _feeVault) external initializer {
         require(_indexFactoryStorage != address(0), "Invalid Address");
+        require(_feeVault != address(0), "Invalid FeeVault");
+
         factoryStorage = IndexFactoryStorage(_indexFactoryStorage);
+        feeVault = FeeVault(_feeVault);
 
         __Ownable_init(msg.sender);
         __Pausable_init();
@@ -85,12 +92,16 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
         uint256 feeAmount = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
-        // uint256 pureIssuanceAmount = _inputAmount + feeAmount;
+        // uint256 issuanceFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getIssuanceFee();
+        // (, bool success) = factoryStorage.feeReceiver().call{values: issuanceFee}();
+        // require(success, "ETH transfer failed!");
+
         IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(factoryStorage.sca()), _inputAmount);
-        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, factoryStorage.feeReceiver(), feeAmount);
+        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(feeVault), feeAmount);
 
         issuanceNonce++;
         factoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
+        factoryStorage.setIssuanceFeeByNonce(issuanceNonce, feeAmount);
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
         factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
@@ -102,6 +113,10 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function redemption(uint256 _amount) external nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
+        // uint256 redemptionFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getRedemptionFee(_amount);
+        // (bool success,) = factoryStorage.feeReceiver().call{value: issuanceFee}("");
+        // require(success, "ETH transfer failed!");
+
         factoryStorage.indexToken().transferFrom(msg.sender, address(factoryStorage.sca()), _amount);
 
         nonce = ++redemptionNonce;
@@ -117,6 +132,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         require(msg.sender == requester, "Only requester can cancel");
 
         uint256 amount = factoryStorage.issuanceInputAmount(nonce);
+        uint256 fee = factoryStorage.issuanceFeeByNonce(nonce);
         require(amount > 0, "nothing to refund");
 
         uint256 roundId = factoryStorage.issuanceRoundId();
@@ -128,9 +144,13 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         factoryStorage.undoIssuance(requester, amount);
         factoryStorage.setIssuanceCompleted(nonce, true);
+        factoryStorage.setIssuanceFeeByNonce(nonce, 0);
         factoryStorage.sca().refund(requester, amount);
+        FeeVault(feeVault).refund(requester, fee);
 
-        emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount, 0, block.timestamp);
+        // IERC20(factoryStorage.usdc()).safeTransferFrom(factoryStorage.feeReceiver(), msg.sender, fee); // should transfer to fee vault
+
+        emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
     }
 
     function cancelRedemption(uint256 nonce) external nonReentrant {

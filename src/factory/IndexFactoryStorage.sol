@@ -51,6 +51,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public roundIdToCrypto5Amount;
     mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
     mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
+    mapping(uint256 => uint256) public issuanceFeeByNonce;
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
@@ -133,16 +134,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         feeReceiver = _feeReceiver;
     }
 
-    // function setBondAmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
-    //     if (_amount == 0) revert ZeroAmount();
-    //     roundIdToBondAmount[_roundId] = _amount;
-    // }
-
-    // function setCrypto5AmountByRoundId(uint256 _roundId, uint256 _amount) external onlyFactory {
-    //     if (_amount == 0) revert ZeroAmount();
-    //     roundIdToCrypto5Amount[_roundId] = _amount;
-    // }
-
     function setIssuanceInputAmount(uint256 _issuanceNonce, uint256 _amount) external onlyFactory {
         if (_amount == 0) revert ZeroAmount();
         issuanceInputAmount[_issuanceNonce] = _amount;
@@ -153,10 +144,9 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         redemptionInputAmount[_redemptionNonce] = _amount;
     }
 
-    // function setBurnedTokenAmountByNonce(uint256 _redemptionNonce, uint256 _burnedAmount) external onlyFactory {
-    //     if (_burnedAmount == 0) revert ZeroAmount();
-    //     burnedTokenAmountByNonce[_redemptionNonce] = _burnedAmount;
-    // }
+    function setIssuanceFeeByNonce(uint256 nonce, uint256 fee) external onlyFactory {
+        issuanceFeeByNonce[nonce] = fee;
+    }
 
     function setIssuanceRoundIdToAddresses(uint256 _roundId, address[] memory addresses) external onlyFactory {
         require(_roundId > 0, "Invalid roundId amount");
@@ -416,6 +406,40 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         if (id == 1) return true;
         uint256 p = id - 1;
         return !redemptionRoundActive[p] && redemptionIsCompleted[p];
+    }
+
+    function getPortfolioValue(uint256 bondPrice, uint256 crypto5Price) public view returns (uint256 totalValue) {
+        uint256 tokens = functionsOracle.totalCurrentList();
+
+        for (uint256 i; i < tokens; ++i) {
+            address token = functionsOracle.currentList(i);
+            uint256 balance = IERC20(token).balanceOf(address(vault));
+            if (balance == 0) continue;
+
+            uint8 assetType = functionsOracle.tokenAssetType(token);
+
+            if (assetType == 0) {
+                totalValue += (balance * bondPrice) / 1e18;
+            } else if (assetType == 1) {
+                totalValue += (balance * crypto5Price) / 1e18;
+            }
+        }
+
+        return totalValue;
+    }
+
+    function calculateMintAmount(uint256 oldValue, uint256 newValue) public view returns (uint256 mintAmount) {
+        require(newValue > oldValue, "no NAV increase");
+
+        uint256 supply = indexToken.totalSupply();
+
+        if (supply == 0 || oldValue == 0) {
+            return newValue;
+            // return newValue / 100;
+        }
+
+        uint256 deltaValue = newValue - oldValue;
+        mintAmount = (supply * deltaValue) / oldValue;
     }
 
     uint256[50] private __gap;

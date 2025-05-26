@@ -22,12 +22,12 @@ error RedemptionAmountIsZero();
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
-    IndexToken indexToken;
+    // IndexToken indexToken;
     IndexFactoryStorage factoryStorage;
-    FunctionsOracle public functionsOracle;
-    IndexFactory factory;
-    Vault public vault;
-    IERC20 public usdc;
+    // FunctionsOracle public functionsOracle;
+    // IndexFactory factory;
+    // Vault public vault;
+    // IERC20 public usdc;
     address public crypto5FactoryAddress;
     address public indexFactoryAddress;
     address public nexBot;
@@ -45,7 +45,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     modifier onlyOwnerOrOperator() {
         require(
-            msg.sender == owner() || functionsOracle.isOperator(msg.sender) || msg.sender == nexBot,
+            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender) || msg.sender == nexBot,
             "Caller is not the owner or operator"
         );
         _;
@@ -62,17 +62,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         __Ownable_init(msg.sender);
 
         factoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
-        vault = Vault(factoryStorage.vault());
-        indexToken = factoryStorage.indexToken();
-        functionsOracle = factoryStorage.functionsOracle();
-        factory = factoryStorage.indexFactory();
-        usdc = factoryStorage.usdc();
 
         nexBot = factoryStorage.nexBot();
         crypto5FactoryAddress = factoryStorage.crypto5FactoryAddress();
         bond = factoryStorage.bond();
-
-        // usdc = IERC20(_usdc);
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -84,7 +77,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(factoryStorage.totalIssuanceByRound(roundId) > 0, "Nothing to withdraw");
         if (amount == 0) revert ZeroAmount();
 
-        IERC20(usdc).safeTransfer(nexBot, amount);
+        IERC20(factoryStorage.usdc()).safeTransfer(nexBot, amount);
         emit WithdrawnForPurchase(roundId, amount, block.timestamp);
     }
 
@@ -102,7 +95,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (amount == 0) revert ZeroAmount();
         // require(to != address(0) && amount > 0, "bad refund");
 
-        usdc.safeTransfer(to, amount);
+        factoryStorage.usdc().safeTransfer(to, amount);
         emit Refunded(to, amount, block.timestamp);
     }
 
@@ -111,7 +104,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         onlyOwnerOrOperator
     {
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
-            address(usdc), _tokenInPath, _tokenInFees, usdcAmount
+            address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
         emit IssuanceCrypto5(usdcAmount, block.timestamp);
     }
@@ -141,18 +134,18 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
 
         factoryStorage.setIssuancenRoundActive(roundId, false);
-        uint256 balance = usdc.balanceOf(address(this));
+        uint256 balance = factoryStorage.usdc().balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
         uint256 usdcAmountForBond;
         uint256 usdcAmountForCrypto5;
 
-        for (uint256 i; i < functionsOracle.totalCurrentList(); ++i) {
-            address token = functionsOracle.currentList(i);
-            uint256 share = functionsOracle.tokenCurrentMarketShare(token);
+        for (uint256 i; i < factoryStorage.functionsOracle().totalCurrentList(); ++i) {
+            address token = factoryStorage.functionsOracle().currentList(i);
+            uint256 share = factoryStorage.functionsOracle().tokenCurrentMarketShare(token);
             uint256 slice = (balance * share) / 100e18;
 
-            if (functionsOracle.tokenAssetType(token) == 1) {
+            if (factoryStorage.functionsOracle().tokenAssetType(token) == 1) {
                 usdcAmountForCrypto5 += slice;
             } else {
                 usdcAmountForBond += slice;
@@ -170,7 +163,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             withdrawForPurchase(roundId, usdcAmountForBond);
         }
 
-        factory.increaseCurrentRoundId();
+        factoryStorage.indexFactory().increaseCurrentRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
     }
 
@@ -185,18 +178,18 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(!factoryStorage.issuanceRoundActive(roundId), "Round is active");
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
 
-        uint256 oldValue = getPortfolioValue(bondPrice, crypto5Price);
+        uint256 oldValue = factoryStorage.getPortfolioValue(bondPrice, crypto5Price);
 
-        for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
-            address tokenAddress = functionsOracle.currentList(i);
+        for (uint256 i; i < factoryStorage.functionsOracle().totalCurrentList(); i++) {
+            address tokenAddress = factoryStorage.functionsOracle().currentList(i);
             uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
             IERC20(tokenAddress).safeTransfer(address(factoryStorage.vault()), balance);
         }
 
-        uint256 newValue = getPortfolioValue(bondPrice, crypto5Price);
+        uint256 newValue = factoryStorage.getPortfolioValue(bondPrice, crypto5Price);
 
-        uint256 mintAmount = calculateMintAmount(oldValue, newValue);
-        if (mintAmount > 0) indexToken.mint(address(this), mintAmount);
+        uint256 mintAmount = factoryStorage.calculateMintAmount(oldValue, newValue);
+        if (mintAmount > 0) factoryStorage.indexToken().mint(address(this), mintAmount);
 
         address[] memory addrs = factoryStorage.addressesInIssuanceRound(roundId);
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
@@ -207,14 +200,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             address user = addrs[i];
             uint256 owed = (mintAmount * factoryStorage.issuanceAmountByRoundUser(roundId, user)) / total;
             if (owed > 0) {
-                indexToken.transfer(user, owed);
+                factoryStorage.indexToken().transfer(user, owed);
                 distributed += owed;
             }
         }
 
         uint256 remainder = mintAmount - distributed;
         if (remainder > 0) {
-            indexToken.transfer(factoryStorage.feeReceiver(), remainder);
+            factoryStorage.indexToken().transfer(factoryStorage.feeReceiver(), remainder);
         }
 
         factoryStorage.settleIssuance(roundId);
@@ -237,7 +230,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         }
 
         if (usdcFromBond > 0) {
-            usdc.safeTransferFrom(msg.sender, address(this), usdcFromBond);
+            factoryStorage.usdc().safeTransferFrom(msg.sender, address(this), usdcFromBond);
         }
 
         uint256 totalUSDC = usdcFromBond + usdcFromCr5;
@@ -256,14 +249,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             uint256 owed = usdcForDistribute * idx / totalIDX;
 
             if (owed > 0) {
-                usdc.safeTransfer(user, owed);
+                factoryStorage.usdc().safeTransfer(user, owed);
                 paid += owed;
             }
         }
 
         uint256 dust = usdcForDistribute - paid;
-        if (dust > 0) usdc.safeTransfer(factoryStorage.feeReceiver(), dust);
-        usdc.safeTransfer(factoryStorage.feeReceiver(), feeAmount);
+        if (dust > 0) factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), dust);
+        factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), feeAmount);
 
         factoryStorage.settleRedemption(roundId);
 
@@ -293,74 +286,39 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.setRedemptionRoundActive(roundId, false);
 
-        uint256 supplyBefore = indexToken.totalSupply();
+        uint256 supplyBefore = factoryStorage.indexToken().totalSupply();
         uint256 pct1e18 = totalIdxThisRound * 1e18 / supplyBefore;
 
         // indexToken.burn(address(this), totalIdxThisRound);
         require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
 
-        uint256 nComps = functionsOracle.totalCurrentList();
+        uint256 nComps = factoryStorage.functionsOracle().totalCurrentList();
         for (uint256 i; i < nComps; ++i) {
-            address comp = functionsOracle.currentList(i);
-            uint256 bal = IERC20(comp).balanceOf(address(vault));
+            address comp = factoryStorage.functionsOracle().currentList(i);
+            uint256 bal = IERC20(comp).balanceOf(address(factoryStorage.vault()));
             if (bal == 0) continue;
 
             uint256 slice = bal * pct1e18 / 1e18;
             if (slice > 0) {
-                vault.withdrawFunds(comp, address(this), slice);
+                factoryStorage.vault().withdrawFunds(comp, address(this), slice);
             }
         }
 
-        uint256 bernBal = IERC20(bond).balanceOf(address(vault));
+        uint256 bernBal = IERC20(bond).balanceOf(address(factoryStorage.vault()));
         uint256 bernSlice = bernBal * pct1e18 / 1e18;
         if (bernSlice > 0) {
-            vault.withdrawFunds(bond, nexBot, bernSlice);
+            factoryStorage.vault().withdrawFunds(bond, nexBot, bernSlice);
         }
 
-        uint256 c5Amount = IERC20(address(indexToken)).balanceOf(address(this));
+        uint256 c5Amount = IERC20(address(factoryStorage.indexToken())).balanceOf(address(this));
         if (c5Amount > 0) {
-            redemptionCrypto5(c5Amount, address(usdc), tokenOutPath, tokenOutFees);
+            redemptionCrypto5(c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
         }
 
-        indexToken.burn(address(this), totalIdxThisRound);
+        factoryStorage.indexToken().burn(address(this), totalIdxThisRound);
 
         factoryStorage.increaseRedemptionRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
-    }
-
-    function getPortfolioValue(uint256 bondPrice, uint256 crypto5Price) public view returns (uint256) {
-        uint256 totalValue;
-
-        uint256 bondBalance = IERC20(bond).balanceOf(address(vault));
-        if (bondBalance > 0) {
-            totalValue += (bondBalance * bondPrice) / 1e18;
-        }
-
-        uint256 totalToken = functionsOracle.totalCurrentList();
-        if (totalToken > 1) {
-            address Crypto5Token = functionsOracle.currentList(1);
-            if (Crypto5Token != address(0)) {
-                uint256 Crypto5Balance = IERC20(Crypto5Token).balanceOf(address(vault));
-                if (Crypto5Balance != 0) {
-                    totalValue += (Crypto5Balance * crypto5Price) / 1e18;
-                }
-            }
-        }
-
-        return totalValue;
-    }
-
-    function calculateMintAmount(uint256 oldValue, uint256 newValue) public view returns (uint256 mintAmount) {
-        require(newValue > oldValue, "no NAV increase");
-
-        uint256 supply = indexToken.totalSupply();
-
-        if (supply == 0 || oldValue == 0) {
-            return newValue;
-        }
-
-        uint256 deltaValue = newValue - oldValue;
-        mintAmount = (supply * deltaValue) / oldValue;
     }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
