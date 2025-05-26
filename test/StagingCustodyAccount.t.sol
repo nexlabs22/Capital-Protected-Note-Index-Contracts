@@ -54,6 +54,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
     address alice = vm.addr(10);
     address bob = vm.addr(11);
+    address feeVault = vm.addr(12);
     address owner = address(this);
 
     MockUSDC usdc;
@@ -144,7 +145,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
             store = IndexFactoryStorage(address(proxy));
         }
 
-        factory.initialize(address(store));
+        factory.initialize(address(store), address(feeVault));
 
         sca.initialize(address(store));
 
@@ -565,7 +566,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 oldValue = 1e18;
         uint256 newValue = 2e18;
 
-        uint256 mintAmount = sca.calculateMintAmount(oldValue, newValue);
+        uint256 mintAmount = store.calculateMintAmount(oldValue, newValue);
         uint256 expected = (idx.totalSupply() * (newValue - oldValue)) / oldValue;
         assertEq(mintAmount, expected);
     }
@@ -692,7 +693,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 crypto5Price = 1e18;
 
         uint256 expected = (bondBal * bondPrice) / 1e18;
-        uint256 val = singleSCA.getPortfolioValue(bondPrice, crypto5Price);
+        uint256 val = store.getPortfolioValue(bondPrice, crypto5Price);
         assertEq(val, expected);
     }
 
@@ -1008,7 +1009,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 crypto5Price = 1e18;
 
         uint256 expected = (bondBal * bondPrice) / 1e18;
-        uint256 val = customSCA.getPortfolioValue(bondPrice, crypto5Price);
+        uint256 val = store.getPortfolioValue(bondPrice, crypto5Price);
         assertEq(val, expected);
     }
 }

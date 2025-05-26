@@ -384,6 +384,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function testFullIssuanceFlow_Single() public {
         vm.startPrank(oracle.owner());
         oracle.setOperator(address(sca), true);
+        // oracle.setOperator(address(nexBot), true);
         vm.stopPrank();
 
         vm.startPrank(idx.owner());
