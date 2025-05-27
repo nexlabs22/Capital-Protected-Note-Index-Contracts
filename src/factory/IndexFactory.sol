@@ -89,19 +89,27 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         _disableInitializers();
     }
 
-    function issuanceIndexToken(uint256 _inputAmount) public nonReentrant returns (uint256) {
+    function issuanceIndexToken(
+        address _tokenIn,
+        address[] memory _tokenInPath,
+        uint24[] memory _tokenInFees,
+        uint256 _inputAmount
+    ) public payable nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
-        uint256 feeAmount = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
-        // uint256 issuanceFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getIssuanceFee();
-        // (, bool success) = factoryStorage.feeReceiver().call{values: issuanceFee}();
-        // require(success, "ETH transfer failed!");
+        uint256 ethFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getIssuanceFee(
+            _tokenIn, _tokenInPath, _tokenInFees, _inputAmount
+        );
+        require(msg.value == ethFee, "wrong ETH fee");
+        (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
+        require(success, "ETH transfer failed!");
 
+        uint256 usdcFee = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
         IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(factoryStorage.sca()), _inputAmount);
-        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(feeVault), feeAmount);
+        IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(feeVault), usdcFee);
 
         issuanceNonce++;
         factoryStorage.setIssuanceInputAmount(issuanceNonce, _inputAmount);
-        factoryStorage.setIssuanceFeeByNonce(issuanceNonce, feeAmount);
+        factoryStorage.setIssuanceFeeByNonce(issuanceNonce, usdcFee);
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
         factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
@@ -111,11 +119,12 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         return issuanceNonce;
     }
 
-    function redemption(uint256 _amount) external nonReentrant returns (uint256 nonce) {
+    function redemption(uint256 _amount) external payable nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
-        // uint256 redemptionFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getRedemptionFee(_amount);
-        // (bool success,) = factoryStorage.feeReceiver().call{value: issuanceFee}("");
-        // require(success, "ETH transfer failed!");
+        uint256 ethFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getRedemptionFee(_amount);
+        require(msg.value == ethFee, "wrong ETH fee");
+        (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
+        require(success, "ETH transfer failed!");
 
         factoryStorage.indexToken().transferFrom(msg.sender, address(factoryStorage.sca()), _amount);
 

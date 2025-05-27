@@ -15,6 +15,15 @@ contract FeeVault is OwnableUpgradeable {
 
     address factory;
 
+    modifier onlyOwnerOrOperator() {
+        require(
+            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender)
+                || msg.sender == factoryStorage.nexBot() || msg.sender == address(factoryStorage.indexFactory()),
+            "Caller is not the owner or operator"
+        );
+        _;
+    }
+
     function initialize(address _indexFactoryStorage) external initializer {
         require(_indexFactoryStorage != address(0), "FeeVault: zero addr");
         factoryStorage = IndexFactoryStorage(_indexFactoryStorage);
@@ -27,8 +36,8 @@ contract FeeVault is OwnableUpgradeable {
         _disableInitializers();
     }
 
-    function refund(address to, uint256 amount) external {
-        require(msg.sender == factory, "FeeVault: !factory");
+    function refund(address to, uint256 amount) external onlyOwnerOrOperator {
+        // require(msg.sender == factory, "FeeVault: !factory");
         require(to != address(0) && amount > 0, "FeeVault: bad params");
         factoryStorage.usdc().safeTransfer(to, amount);
     }

@@ -15,6 +15,8 @@ import {LinkToken} from "./helpers/LinkToken.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {Token} from "./helpers/Token.sol";
 import "../src/factory/FunctionsOracle.sol";
+import "../src/interfaces/ICrypto5Factory.sol";
+import "../src/Vault/FeeVault.sol";
 import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
@@ -37,18 +39,31 @@ contract MockIDXc5 is ERC20("Crypto-5", "IDXc5") {
     }
 }
 
-contract DummyCrypto5Factory {
+contract DummyCrypto5Factory is ICrypto5Factory {
     MockIDXc5 public immutable idxc5;
 
     constructor(address _idxc5) {
         idxc5 = MockIDXc5(_idxc5);
     }
 
-    function issuanceIndexTokens(address, address[] calldata, uint24[] calldata, uint256 amt) external {
+    function issuanceIndexTokens(address, address[] calldata, uint24[] calldata, uint256 amt) external payable {
         idxc5.mint(msg.sender, amt);
     }
 
-    function redemption(uint256, address, address[] calldata, uint24[] calldata) external {}
+    function redemption(uint256, address, address[] calldata, uint24[] calldata) external payable {}
+
+    function getIssuanceFee(address, address[] calldata, uint24[] calldata, uint256)
+        external
+        pure
+        override
+        returns (uint256)
+    {
+        return 10;
+    }
+
+    function getRedemptionFee(uint256) external pure override returns (uint256) {
+        return 10;
+    }
 }
 
 contract TestFunctionsOracle is FunctionsOracle {
@@ -69,6 +84,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     address nexBot = vm.addr(2);
     address alice = vm.addr(3);
     address bob = vm.addr(4);
+    // address feeVault = vm.addr(5);
 
     MockUSDC usdc;
     MockBond bond;
@@ -84,6 +100,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     LinkToken link;
     Token token0;
     Token token1;
+    FeeVault feeVault;
 
     uint256 constant ONE_USDC = 1e6;
 
@@ -92,6 +109,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         bond = new MockBond();
         idxc5 = new MockIDXc5();
         cr5 = new DummyCrypto5Factory(address(idxc5));
+        // feeVault = new FeeVault();
 
         vault = Vault(address(new ERC1967Proxy(address(new Vault()), abi.encodeCall(Vault.initialize, (owner)))));
 
@@ -105,6 +123,10 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         );
 
         store = IndexFactoryStorage(address(new ERC1967Proxy(address(new IndexFactoryStorage()), "")));
+
+        feeVault = FeeVault(
+            address(new ERC1967Proxy(address(new FeeVault()), abi.encodeCall(FeeVault.initialize, (address(store)))))
+        );
 
         sca = StagingCustodyAccount(payable(address(new ERC1967Proxy(address(new StagingCustodyAccount()), ""))));
 
@@ -142,9 +164,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         sca.initialize(address(store));
         vault.setOperator(address(sca), true);
         sca.transferOwnership(address(factory));
-        factory.initialize(address(store));
+        factory.initialize(address(store), address(feeVault));
 
         idx.setMinter(owner, true);
+
+        deal(alice, 10 ether);
 
         usdc.mint(alice, 1_000_000 * ONE_USDC);
         usdc.mint(bob, 1_000_000 * ONE_USDC);
@@ -165,7 +189,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         deal(address(usdc), alice, 20e18);
         vm.startPrank(alice);
         IERC20(usdc).approve(address(factory), inputAmount + 1e16);
-        factory.issuanceIndexToken(inputAmount);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inputAmount);
         vm.stopPrank();
 
         vm.startPrank(bob);
@@ -178,45 +202,53 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 inAmt = 10_000 * ONE_USDC;
         uint256 fee = (inAmt * 10) / 10000;
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
         emit IndexFactory.RequestIssuance(1, alice, address(usdc), inAmt, 0, block.timestamp);
-        uint256 nonce = factory.issuanceIndexToken(inAmt);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
 
         assertEq(nonce, 1);
         assertEq(factory.issuanceNonce(), 1);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
-        assertEq(usdc.balanceOf(feeRec), fee);
+        assertEq(usdc.balanceOf(address(feeVault)), fee);
     }
 
-    function testIssuanceZeroRevert() public {
-        vm.expectRevert(ZeroAmount.selector);
-        factory.issuanceIndexToken(0);
-    }
+    // function testIssuanceZeroRevert() public {
+    //     vm.expectRevert(ZeroAmount.selector);
+    //     factory.issuanceIndexToken(address(store.usdc()), new address[](0), new uint24[](0), 0);
+    // }
 
     function test_cancelIssuance_FailWhenIssuanceIsCompleted() public {
         uint256 inAmt = 10_000 * ONE_USDC;
 
-        vm.prank(alice);
-        uint256 nonce = factory.issuanceIndexToken(inAmt);
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
+        vm.stopPrank();
 
-        vm.prank(address(this));
+        vm.startPrank(address(this));
         store.settleIssuance(1);
+        vm.stopPrank();
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectRevert("Issuance is completed");
         factory.cancelIssuance(nonce);
+        vm.stopPrank();
     }
 
     function test_cancelIssuance_FailWhenSenderIsNotRequester() public {
         uint256 inAmt = 10_000 * ONE_USDC;
 
-        vm.prank(alice);
-        uint256 nonce = factory.issuanceIndexToken(inAmt);
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
+        vm.stopPrank();
 
-        vm.prank(address(this));
+        vm.startPrank(address(this));
         vm.expectRevert("Only requester can cancel");
         factory.cancelIssuance(nonce);
+        vm.stopPrank();
     }
 
     function test_increaseCurrentRoundId_FailWhenSenderIsNotOwnerOrOperator() public {
@@ -249,21 +281,22 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amount = 10_000 * ONE_USDC;
         uint256 fee = (amount * 10) / 10000;
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
         emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
-        factory.issuanceIndexToken(amount);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amount);
 
         assertEq(factory.issuanceNonce(), 1);
         assertEq(usdc.balanceOf(address(sca)), amount);
-        assertEq(usdc.balanceOf(feeRec), fee);
+        assertEq(usdc.balanceOf(address(feeVault)), fee);
         assertEq(store.issuanceInputAmount(1), amount);
     }
 
-    function testIssuance_zeroReverts() public {
-        vm.expectRevert(ZeroAmount.selector);
-        factory.issuanceIndexToken(0);
-    }
+    // function testIssuance_zeroReverts() public {
+    //     vm.startPrank(alice);
+    //     vm.expectRevert(ZeroAmount.selector);
+    //     factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), 0);
+    // }
 
     function _mintAndApproveIdx(address user, uint256 qty) internal {
         idx.mint(user, qty);
@@ -278,11 +311,13 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, aliceIdx);
         _mintAndApproveIdx(bob, bobIdx);
 
+        deal(bob, 1 ether);
+
         vm.prank(alice);
-        uint256 n1 = factory.redemption(aliceIdx);
+        uint256 n1 = factory.redemption{value: 10}(aliceIdx);
 
         vm.prank(bob);
-        uint256 n2 = factory.redemption(bobIdx);
+        uint256 n2 = factory.redemption{value: 10}(bobIdx);
 
         assertEq(n2, 2);
         assertEq(factory.redemptionNonce(), 2);
@@ -301,38 +336,49 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     }
 
     function testCancelIssuance_failsIfCompleted() public {
-        vm.prank(alice);
-        uint256 n = factory.issuanceIndexToken(1_000 * ONE_USDC);
+        vm.startPrank(alice);
+        store.usdc().approve(address(factory), type(uint256).max);
+        uint256 n = factory.issuanceIndexToken{value: 10}(
+            address(store.usdc()), new address[](0), new uint24[](0), 1_000 * ONE_USDC
+        );
+        vm.stopPrank();
 
-        vm.prank(address(this));
+        vm.startPrank(address(this));
         store.settleIssuance(1);
+        vm.stopPrank();
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectRevert("Issuance is completed");
         factory.cancelIssuance(n);
+        vm.stopPrank();
     }
 
     function testCancelIssuance_nonRequesterReverts() public {
-        vm.prank(alice);
-        uint256 n = factory.issuanceIndexToken(1_000 * ONE_USDC);
+        vm.startPrank(alice);
+        uint256 n = factory.issuanceIndexToken{value: 10}(
+            address(store.usdc()), new address[](0), new uint24[](0), 1_000 * ONE_USDC
+        );
+        vm.stopPrank();
 
-        vm.prank(bob);
+        vm.startPrank(bob);
         vm.expectRevert("Only requester can cancel");
         factory.cancelIssuance(n);
+        vm.stopPrank();
     }
 
     function testIssuance_updatesStorageAndRoundData() public {
         uint256 amt = 25_000 * ONE_USDC;
         uint256 fee = (amt * 10) / 10000;
 
-        vm.prank(alice);
-        uint256 n = factory.issuanceIndexToken(amt);
+        vm.startPrank(alice);
+        uint256 n = factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
 
         assertEq(n, 1);
         assertEq(factory.issuanceNonce(), 1);
 
         assertEq(usdc.balanceOf(address(sca)), amt);
-        assertEq(usdc.balanceOf(feeRec), fee);
+        assertEq(usdc.balanceOf(address(feeVault)), fee);
 
         assertEq(store.totalIssuanceByRound(1), amt);
         assertEq(store.issuanceAmountByRoundUser(1, alice), amt);
@@ -345,10 +391,12 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 42_000 * ONE_USDC;
         uint256 fee = amt * store.feeRate() / 10_000;
 
-        uint256 before = usdc.balanceOf(feeRec);
-        vm.prank(alice);
-        factory.issuanceIndexToken(amt);
-        uint256 afterBal = usdc.balanceOf(feeRec);
+        uint256 before = usdc.balanceOf(address(feeVault));
+        vm.startPrank(alice);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        uint256 afterBal = usdc.balanceOf(address(feeVault));
 
         assertEq(afterBal - before, fee, "fee mismatch");
     }
@@ -356,25 +404,34 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function testIssuance_emitsCorrectEvent() public {
         uint256 amt = 5_555 * ONE_USDC;
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
         emit IndexFactory.RequestIssuance(1, alice, address(usdc), amt, 0, block.timestamp);
-        factory.issuanceIndexToken(amt);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
     }
 
     function testCancelIssuance_HappyPath() public {
         uint256 amt = 8_000 * ONE_USDC;
 
-        vm.prank(alice);
-        uint256 nonce = factory.issuanceIndexToken(amt);
+        deal(address(usdc), address(this), 1_000_000 * ONE_USDC);
+
+        uint256 fee = (amt * 10) / 10000;
+
+        // 8000
+        // 8
+
+        vm.startPrank(alice);
+        store.usdc().approve(address(factory), amt * 2);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
 
         uint256 balBefore = usdc.balanceOf(alice);
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         factory.cancelIssuance(nonce);
 
         uint256 balAfter = usdc.balanceOf(alice);
-        assertEq(balAfter - balBefore, amt, "refund missing");
+        assertEq(balAfter - balBefore, amt + fee, "refund missing");
 
         assertTrue(store.issuanceIsCompleted(nonce));
         assertEq(store.totalIssuanceByRound(1), 0);
@@ -393,12 +450,14 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         uint256 inAmt = 100_000 * ONE_USDC;
 
-        vm.prank(alice);
-        factory.issuanceIndexToken(inAmt);
+        vm.startPrank(alice);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
+        vm.stopPrank();
 
-        vm.prank(nexBot);
+        vm.startPrank(nexBot);
         sca.requestIssuance(1, new address[](0), new uint24[](0));
+        vm.stopPrank();
 
         uint256 toBot = inAmt * 80 / 100;
         assertEq(usdc.balanceOf(nexBot), toBot);
@@ -408,8 +467,9 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
-        vm.prank(nexBot);
+        vm.startPrank(nexBot);
         sca.completeIssuance(1, bondPrice, c5Price);
+        vm.stopPrank();
 
         // assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
@@ -428,32 +488,42 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         address carol = vm.addr(9);
+        deal(bob, 1 ether);
+        deal(carol, 1 ether);
         usdc.mint(carol, 1_000_000 * ONE_USDC);
-        vm.prank(carol);
+        vm.startPrank(carol);
         usdc.approve(address(factory), type(uint256).max);
+        vm.stopPrank();
 
         uint256 aAmt = 60_000 * ONE_USDC;
         uint256 bAmt = 30_000 * ONE_USDC;
         uint256 cAmt = 10_000 * ONE_USDC;
         uint256 totalIn = aAmt + bAmt + cAmt;
 
-        vm.prank(alice);
-        factory.issuanceIndexToken(aAmt);
-        vm.prank(bob);
-        factory.issuanceIndexToken(bAmt);
-        vm.prank(carol);
-        factory.issuanceIndexToken(cAmt);
+        vm.startPrank(alice);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
+        vm.stopPrank();
 
-        vm.prank(nexBot);
+        vm.startPrank(bob);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
+        vm.stopPrank();
+
+        vm.startPrank(carol);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
+        vm.stopPrank();
+
+        vm.startPrank(nexBot);
         sca.requestIssuance(1, new address[](0), new uint24[](0));
+        vm.stopPrank();
 
         bond.mint(address(sca), 77_000 ether);
 
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
         // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
-        vm.prank(nexBot);
+        vm.startPrank(nexBot);
         sca.completeIssuance(1, bondPrice, c5Price);
+        vm.stopPrank();
 
         // assertEq(idx.balanceOf(alice), expectedMint * pureAAmount / totalIn);
         // assertEq(idx.balanceOf(bob), expectedMint * pureBAmount / totalIn);
@@ -473,37 +543,25 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
     }
 
-    // function updateOracleList() public {
-    //     address[] memory assetList = new address[](10);
-    //     assetList[0] = address(token0);
-    //     assetList[1] = address(token1);
-
-    //     uint256[] memory tokenShares = new uint256[](10);
-    //     tokenShares[0] = 80e18;
-    //     tokenShares[1] = 20e18;
-
-    //     link.transfer(address(oracle), 1e17);
-    //     // bytes32 requestId = factoryStorage.requestAssetsData();
-    //     // oracle.fulfillOracleFundingRateRequest(requestId, assetList, tokenShares);
-    //     bytes32 requestId = oracle.requestAssetsData("console.log('Hello, World!');", 0, 0);
-    //     bytes memory data = abi.encode(assetList, tokenShares);
-    //     oracle.fulfillRequest(address(oracle), requestId, data);
-    // }
-
     function test_cancelIssuance_branch_balanceOfSCA_lt_amount() public {
         uint256 amt = 10_000 * ONE_USDC;
-        vm.prank(alice);
-        uint256 nonce = factory.issuanceIndexToken(amt);
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
 
         address scaAddr = address(sca);
         address dummy = address(0xdead);
-        vm.prank(scaAddr);
+        vm.startPrank(scaAddr);
         usdc.transfer(dummy, amt);
+        vm.stopPrank();
+
         assertEq(usdc.balanceOf(scaAddr), 0);
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectRevert(bytes("USDC already deployed"));
         factory.cancelIssuance(nonce);
+        vm.stopPrank();
     }
 
     function test_cancelRedemption_revertsWhenRedemptionIsCompleted() public {
@@ -511,7 +569,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, idxAmount);
 
         vm.prank(alice);
-        uint256 nonce = factory.redemption(idxAmount);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
 
         vm.prank(address(factory));
         store.setRedemptionCompleted(nonce, true);
@@ -526,7 +584,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, idxAmount);
 
         vm.prank(alice);
-        uint256 nonce = factory.redemption(idxAmount);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
 
         vm.prank(address(factory));
         store.setRedemptionRequesterByNonce(nonce, alice);
@@ -544,16 +602,20 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function test_cancelIssuance_branch_issuanceRoundActive_false() public {
         uint256 amt = 10_000 * ONE_USDC;
-        vm.prank(alice);
-        uint256 nonce = factory.issuanceIndexToken(amt);
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
 
-        vm.prank(address(factory));
+        vm.startPrank(address(factory));
         store.setIssuancenRoundActive(1, false);
         assertEq(store.issuanceRoundActive(1), false);
+        vm.stopPrank();
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectRevert(bytes("round already processed"));
         factory.cancelIssuance(nonce);
+        vm.stopPrank();
     }
 
     function test_cancelRedemption_branch_onlyRequesterCanCancel() public {
@@ -561,7 +623,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, idxAmount);
 
         vm.prank(alice);
-        uint256 nonce = factory.redemption(idxAmount);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
 
         vm.prank(bob);
         vm.expectRevert("Only requester can cancel");

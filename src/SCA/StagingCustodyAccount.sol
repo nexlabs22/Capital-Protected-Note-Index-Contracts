@@ -22,12 +22,8 @@ error RedemptionAmountIsZero();
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
-    // IndexToken indexToken;
     IndexFactoryStorage factoryStorage;
-    // FunctionsOracle public functionsOracle;
-    // IndexFactory factory;
-    // Vault public vault;
-    // IERC20 public usdc;
+
     address public crypto5FactoryAddress;
     address public indexFactoryAddress;
     address public nexBot;
