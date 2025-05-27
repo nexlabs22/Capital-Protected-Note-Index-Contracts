@@ -27,7 +27,7 @@ contract DeployIndexFactory is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         address proxy = Upgrades.deployTransparentProxy(
-            "IndexFactory.sol", owner, abi.encodeCall(IndexFactory.initialize, (address(0)))
+            "IndexFactory.sol", owner, abi.encodeCall(IndexFactory.initialize, (address(0), address(0)))
         );
 
         IndexFactory indexFactoryImplementation = IndexFactory(proxy);
