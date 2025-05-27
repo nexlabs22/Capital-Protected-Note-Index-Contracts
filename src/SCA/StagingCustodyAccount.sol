@@ -97,9 +97,12 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function issuanceCrypto5(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
         public
+        payable
         onlyOwnerOrOperator
     {
-        ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens(
+        uint256 issuanceFee =
+            factoryStorage.getIssuanceFee(address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount);
+        ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens{value: issuanceFee}(
             address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
         emit IssuanceCrypto5(usdcAmount, block.timestamp);
@@ -111,12 +114,16 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         address[] memory _tokenOutPath,
         uint24[] memory _tokenOutFees
     ) public onlyOwnerOrOperator {
-        ICrypto5Factory(crypto5FactoryAddress).redemption(amountIn, _tokenOut, _tokenOutPath, _tokenOutFees);
+        uint256 redemptionFee = factoryStorage.getRedemptionFee(amountIn);
+        ICrypto5Factory(crypto5FactoryAddress).redemption{value: redemptionFee}(
+            amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
+        );
         emit RedemptionCrpyto5(amountIn, block.timestamp);
     }
 
     function requestIssuance(uint256 roundId, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
         public
+        payable
         onlyOwnerOrOperator
     {
         require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
@@ -152,6 +159,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (dust > 0) usdcAmountForBond += dust;
 
         if (usdcAmountForCrypto5 > 0) {
+            // uint256 issuanceFee = factoryStorage.getIssuanceFee(
+            //     address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForCrypto5
+            // );
+            // issuanceCrypto5{value: issuanceFee}(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
             issuanceCrypto5(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
         }
 
@@ -261,6 +272,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     function requestRedemption(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
         external
+        payable
         nonReentrant
         onlyOwnerOrOperator
     {
@@ -309,6 +321,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 c5Amount = IERC20(address(factoryStorage.indexToken())).balanceOf(address(this));
         if (c5Amount > 0) {
             redemptionCrypto5(c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
+            // redemptionCrypto5{value: redemptionFee}(
+            //     c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees
+            // );
         }
 
         factoryStorage.indexToken().burn(address(this), totalIdxThisRound);

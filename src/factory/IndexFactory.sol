@@ -96,10 +96,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         uint256 _inputAmount
     ) public payable nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
-        uint256 ethFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getIssuanceFee(
-            _tokenIn, _tokenInPath, _tokenInFees, _inputAmount
-        );
-        require(msg.value == ethFee, "wrong ETH fee");
+        uint256 ethFee = factoryStorage.getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -121,8 +118,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     function redemption(uint256 _amount) external payable nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
-        uint256 ethFee = ICrypto5Factory(factoryStorage.crypto5FactoryAddress()).getRedemptionFee(_amount);
-        require(msg.value == ethFee, "wrong ETH fee");
+        uint256 ethFee = factoryStorage.getRedemptionFee(_amount);
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 

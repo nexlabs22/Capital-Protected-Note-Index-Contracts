@@ -10,6 +10,7 @@ import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
+import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 
 error InvalidAddress();
 error ZeroAmount();
@@ -440,6 +441,28 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         uint256 deltaValue = newValue - oldValue;
         mintAmount = (supply * deltaValue) / oldValue;
+    }
+
+    function getIssuanceFee(
+        address _tokenIn,
+        address[] memory _tokenInPath,
+        uint24[] memory _tokenInFees,
+        uint256 _inputAmount
+    ) public view returns (uint256) {
+        uint256 ethFee =
+            ICrypto5Factory(crypto5FactoryAddress).getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
+        return ethFee;
+        // require(msg.value == ethFee, "wrong ETH fee");
+        // (bool success,) = nexBot.call{value: ethFee}("");
+        // require(success, "ETH transfer failed!");
+    }
+
+    function getRedemptionFee(uint256 _amount) public view returns (uint256) {
+        uint256 ethFee = ICrypto5Factory(crypto5FactoryAddress).getRedemptionFee(_amount);
+        return ethFee;
+        // require(msg.value == ethFee, "wrong ETH fee");
+        // (bool success,) = nexBot.call{value: ethFee}("");
+        // require(success, "ETH transfer failed!");
     }
 
     uint256[50] private __gap;
