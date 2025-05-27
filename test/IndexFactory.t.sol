@@ -456,7 +456,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         vm.startPrank(nexBot);
-        sca.requestIssuance(1, new address[](0), new uint24[](0));
+        sca.requestIssuance{value: 10}(1, new address[](0), new uint24[](0));
         vm.stopPrank();
 
         uint256 toBot = inAmt * 80 / 100;
@@ -513,7 +513,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         vm.startPrank(nexBot);
-        sca.requestIssuance(1, new address[](0), new uint24[](0));
+        sca.requestIssuance{value: 10}(1, new address[](0), new uint24[](0));
         vm.stopPrank();
 
         bond.mint(address(sca), 77_000 ether);
