@@ -6,7 +6,7 @@ import {IndexToken} from "../src/token/IndexToken.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "./OlympixUnitTest.sol";
 
-contract IndexTokenTest is OlympixUnitTest("IndexToken") {
+contract IndexTokenTest is Test {
     uint256 internal constant SCALAR = 1e20;
 
     IndexToken public indexToken;

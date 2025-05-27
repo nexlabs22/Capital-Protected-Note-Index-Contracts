@@ -12,7 +12,7 @@ contract OracleHarness is FunctionsOracle {
     }
 }
 
-contract FunctionsOracleTest is OlympixUnitTest("FunctionsOracle") {
+contract FunctionsOracleTest is Test {
     address owner = vm.addr(1);
     address operator = vm.addr(2);
     address balancer = vm.addr(3);
