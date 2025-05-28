@@ -102,6 +102,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     {
         uint256 issuanceFee =
             factoryStorage.getIssuanceFee(address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount);
+        factoryStorage.feeVault().withdrawEth(nexBot, issuanceFee);
         ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens{value: issuanceFee}(
             address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
@@ -115,6 +116,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint24[] memory _tokenOutFees
     ) public onlyOwnerOrOperator {
         uint256 redemptionFee = factoryStorage.getRedemptionFee(amountIn);
+        factoryStorage.feeVault().withdrawEth(nexBot, redemptionFee);
         ICrypto5Factory(crypto5FactoryAddress).redemption{value: redemptionFee}(
             amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
         );
@@ -135,7 +137,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
         // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
-
         factoryStorage.setIssuancenRoundActive(roundId, false);
         uint256 balance = factoryStorage.usdc().balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");

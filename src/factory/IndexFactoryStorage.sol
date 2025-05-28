@@ -11,6 +11,7 @@ import {IndexToken} from "../token/IndexToken.sol";
 import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {FeeVault} from "../vault/FeeVault.sol";
 
 error InvalidAddress();
 error ZeroAmount();
@@ -22,6 +23,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     IndexFactory public indexFactory;
     FunctionsOracle public functionsOracle;
     StagingCustodyAccount public sca;
+    FeeVault public feeVault;
     IERC20 public usdc;
 
     address public bond;
@@ -83,6 +85,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _crypto5FactoryAddress,
         address _usdc,
         address _bond,
+        address _feeVault,
         bool _isMainnet
     ) external initializer {
         require(_indexToken != address(0), "Invalid _indexToken address");
@@ -435,8 +438,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         uint256 supply = indexToken.totalSupply();
 
         if (supply == 0 || oldValue == 0) {
-            return newValue;
-            // return newValue / 100;
+            // return newValue;
+            return newValue / 100;
         }
 
         uint256 deltaValue = newValue - oldValue;
@@ -452,17 +455,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         uint256 ethFee =
             ICrypto5Factory(crypto5FactoryAddress).getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
         return ethFee;
-        // require(msg.value == ethFee, "wrong ETH fee");
-        // (bool success,) = nexBot.call{value: ethFee}("");
-        // require(success, "ETH transfer failed!");
     }
 
     function getRedemptionFee(uint256 _amount) public view returns (uint256) {
         uint256 ethFee = ICrypto5Factory(crypto5FactoryAddress).getRedemptionFee(_amount);
         return ethFee;
-        // require(msg.value == ethFee, "wrong ETH fee");
-        // (bool success,) = nexBot.call{value: ethFee}("");
-        // require(success, "ETH transfer failed!");
     }
 
     uint256[50] private __gap;

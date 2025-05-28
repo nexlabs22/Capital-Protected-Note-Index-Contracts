@@ -7,16 +7,17 @@ import {FeeVault} from "../src/vault/FeeVault.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "./OlympixUnitTest.sol";
 
 contract DummyIndexFactory {}
 
 error OwnableUnauthorizedAccount(address account);
 
-contract FeeVaultTest is Test {
+contract FeeVaultTest is OlympixUnitTest("FeeVault") {
     address owner = address(this);
     address operator = vm.addr(1);
     address nexBot = vm.addr(2);
@@ -51,6 +52,7 @@ contract FeeVaultTest is Test {
             address(4),
             address(usdc),
             address(5),
+            address(6),
             false
         );
 
@@ -115,11 +117,28 @@ contract FeeVaultTest is Test {
         vault.withdrawUsdc(operator, 1 * ONE_USDC);
     }
 
+    function testWithdrawEthNonOwnerReverts() public {
+        vm.prank(alice);
+        bytes memory err = abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, alice);
+        vm.expectRevert(err);
+        vault.withdrawEth(operator, 1 * ONE_USDC);
+    }
+
     function testWithdrawAllUsdc() public {
         uint256 vaultBal = usdc.balanceOf(address(vault));
         uint256 before = usdc.balanceOf(owner);
 
         vault.withdrawAllUsdc();
+
+        assertEq(usdc.balanceOf(address(vault)), 0);
+        assertEq(usdc.balanceOf(owner) - before, vaultBal);
+    }
+
+    function testWithdrawEth() public {
+        uint256 vaultBal = usdc.balanceOf(address(vault));
+        uint256 before = usdc.balanceOf(owner);
+
+        vault.withdrawEth(operator, 100);
 
         assertEq(usdc.balanceOf(address(vault)), 0);
         assertEq(usdc.balanceOf(owner) - before, vaultBal);

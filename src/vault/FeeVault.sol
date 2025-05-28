@@ -51,4 +51,11 @@ contract FeeVault is OwnableUpgradeable {
         uint256 balance = factoryStorage.usdc().balanceOf(address(this));
         factoryStorage.usdc().safeTransfer(owner(), balance);
     }
+
+    function withdrawEth(address to, uint256 amount) external onlyOwnerOrOperator {
+        uint256 balance = address(this).balance;
+        require(amount <= balance, "Invalid amount");
+        (bool success,) = to.call{value: amount}("");
+        require(success, "Transfer failed");
+    }
 }

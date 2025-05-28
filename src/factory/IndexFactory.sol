@@ -24,7 +24,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     IndexFactoryStorage factoryStorage;
     FeeVault feeVault;
 
-    // address feeVault;
     uint256 public issuanceNonce;
     uint256 public redemptionNonce;
 
@@ -97,7 +96,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     ) public payable nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
-        (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
+        // (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
+        (bool success,) = address(factoryStorage.feeVault()).call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
         uint256 usdcFee = FeeCalculation.calculateFee(_inputAmount, factoryStorage.feeRate());
@@ -119,7 +119,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     function redemption(uint256 _amount) external payable nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getRedemptionFee(_amount);
-        (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
+        (bool success,) = address(factoryStorage.feeVault()).call{value: ethFee}("");
+        // (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
         factoryStorage.indexToken().transferFrom(msg.sender, address(factoryStorage.sca()), _amount);
@@ -131,7 +132,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         emit RequestRedemption(nonce, msg.sender, address(factoryStorage.usdc()), _amount, 0, block.timestamp);
     }
 
-    function cancelIssuance( /*uint256 roundId,*/ uint256 nonce) external nonReentrant {
+    function cancelIssuance(uint256 nonce) external nonReentrant {
         require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
@@ -152,8 +153,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         factoryStorage.setIssuanceFeeByNonce(nonce, 0);
         factoryStorage.sca().refund(requester, amount);
         FeeVault(feeVault).refund(requester, fee);
-
-        // IERC20(factoryStorage.usdc()).safeTransferFrom(factoryStorage.feeReceiver(), msg.sender, fee); // should transfer to fee vault
 
         emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
     }
