@@ -37,7 +37,6 @@ contract FeeVault is OwnableUpgradeable {
     }
 
     function refund(address to, uint256 amount) external onlyOwnerOrOperator {
-        // require(msg.sender == factory, "FeeVault: !factory");
         require(to != address(0) && amount > 0, "FeeVault: bad params");
         factoryStorage.usdc().safeTransfer(to, amount);
     }

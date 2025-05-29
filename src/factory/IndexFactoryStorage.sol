@@ -438,12 +438,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         uint256 supply = indexToken.totalSupply();
 
         if (supply == 0 || oldValue == 0) {
-            // return newValue;
             return newValue / 100;
         }
 
-        uint256 deltaValue = newValue - oldValue;
-        mintAmount = (supply * deltaValue) / oldValue;
+        mintAmount = supply * (newValue - oldValue) / oldValue;
     }
 
     function getIssuanceFee(
