@@ -118,8 +118,7 @@ contract FeeVaultTest is OlympixUnitTest("FeeVault") {
 
     function testWithdrawEthNonOwnerReverts() public {
         vm.prank(alice);
-        bytes memory err = abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, alice);
-        vm.expectRevert(err);
+        vm.expectRevert("Caller is not the owner or operator");
         vault.withdrawEth(operator, 1 * ONE_USDC);
     }
 
@@ -134,12 +133,10 @@ contract FeeVaultTest is OlympixUnitTest("FeeVault") {
     }
 
     function testWithdrawEth() public {
-        uint256 vaultBal = usdc.balanceOf(address(vault));
-        uint256 before = usdc.balanceOf(owner);
+        deal(address(vault), 100);
 
         vault.withdrawEth(operator, 100);
 
-        assertEq(usdc.balanceOf(address(vault)), 0);
-        assertEq(usdc.balanceOf(owner) - before, vaultBal);
+        assertEq(address(vault).balance, 0);
     }
 }

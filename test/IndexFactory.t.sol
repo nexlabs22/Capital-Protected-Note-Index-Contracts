@@ -281,10 +281,14 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amount = 10_000 * ONE_USDC;
         uint256 fee = (amount * 10) / 10000;
 
+        console.log("Nex Bot balance After: ", address(nexBot).balance);
+
         vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
         emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
         factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amount);
+
+        console.log("Nex Bot balance After: ", address(nexBot).balance);
 
         assertEq(factory.issuanceNonce(), 1);
         assertEq(usdc.balanceOf(address(sca)), amount);
@@ -450,14 +454,20 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         uint256 inAmt = 100_000 * ONE_USDC;
 
+        console.log("Nex bot balance before issuance: ", address(nexBot).balance);
+
         vm.startPrank(alice);
         factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
         vm.stopPrank();
 
+        console.log("Nex bot balance after issuance: ", address(nexBot).balance);
+
         vm.startPrank(nexBot);
         sca.requestIssuance{value: 10}(1, new address[](0), new uint24[](0));
         vm.stopPrank();
+
+        console.log("Nex bot balance after request issuance: ", address(nexBot).balance);
 
         uint256 toBot = inAmt * 80 / 100;
         assertEq(usdc.balanceOf(nexBot), toBot);
@@ -500,6 +510,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 cAmt = 10_000 * ONE_USDC;
         uint256 totalIn = aAmt + bAmt + cAmt;
 
+        console.log("Nex bot balance before issuance: ", address(nexBot).balance);
+
         vm.startPrank(alice);
         factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
         vm.stopPrank();
@@ -512,24 +524,90 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
         vm.stopPrank();
 
+        console.log("Nex bot balance after issuance: ", address(nexBot).balance);
+
         vm.startPrank(nexBot);
         sca.requestIssuance{value: 10}(1, new address[](0), new uint24[](0));
         vm.stopPrank();
 
+        console.log("Nex bot balance after requestIssuance: ", address(nexBot).balance);
+
         bond.mint(address(sca), 77_000 ether);
+        // idxc5.mint(address(sca), 77_000 ether);
 
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
-        // uint256 expectedMint = sca.calculateMintAmount(1, bondPrice, c5Price);
         vm.startPrank(nexBot);
         sca.completeIssuance(1, bondPrice, c5Price);
         vm.stopPrank();
 
-        // assertEq(idx.balanceOf(alice), expectedMint * pureAAmount / totalIn);
-        // assertEq(idx.balanceOf(bob), expectedMint * pureBAmount / totalIn);
-        // assertEq(idx.balanceOf(carol), expectedMint * pureCAmount / totalIn);
-
         assertEq(idxc5.balanceOf(address(vault)), totalIn / 5);
+        assertTrue(store.issuanceIsCompleted(1));
+    }
+
+    function testFullIssuanceFlow_FirstRound_Price100() public {
+        vm.startPrank(oracle.owner());
+        oracle.setOperator(address(sca), true);
+        vm.stopPrank();
+
+        vm.prank(idx.owner());
+        idx.setMinter(address(sca), true);
+
+        address carol = vm.addr(9);
+        deal(bob, 1 ether);
+        deal(carol, 1 ether);
+
+        usdc.mint(carol, 1_000_000 * ONE_USDC);
+
+        vm.startPrank(alice);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.stopPrank();
+        vm.startPrank(bob);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.stopPrank();
+        vm.startPrank(carol);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.stopPrank();
+
+        uint256 aAmt = 60_000 * ONE_USDC;
+        uint256 bAmt = 30_000 * ONE_USDC;
+        uint256 cAmt = 10_000 * ONE_USDC;
+        // uint256 totalUSDCin = aAmt + bAmt + cAmt;
+
+        vm.startPrank(alice);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
+        vm.stopPrank();
+
+        vm.startPrank(carol);
+        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
+        vm.stopPrank();
+
+        vm.prank(nexBot);
+        sca.requestIssuance{value: 10}(1, new address[](0), new uint24[](0));
+
+        uint256 bondQty = 77_000 ether;
+
+        bond.mint(address(sca), bondQty);
+
+        uint256 bondPrice = 2e18;
+        uint256 c5Price = 1e18;
+
+        vm.prank(nexBot);
+        sca.completeIssuance(1, bondPrice, c5Price);
+
+        uint256 c5Bal = idxc5.balanceOf(address(vault));
+        uint256 newValue = (bondQty * bondPrice) / 1e18 + (c5Bal * c5Price) / 1e18;
+
+        uint256 expectedMint = newValue / 100;
+
+        assertEq(idx.totalSupply(), expectedMint, "IDX minted mismatch");
+        assertEq(
+            idx.balanceOf(alice) + idx.balanceOf(bob) + idx.balanceOf(carol), expectedMint, "distribution mismatch"
+        );
         assertTrue(store.issuanceIsCompleted(1));
     }
 
