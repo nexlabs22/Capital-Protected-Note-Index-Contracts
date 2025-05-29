@@ -32,6 +32,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     address newRecv = vm.addr(9);
     address owner = vm.addr(11);
     address bond = vm.addr(12);
+    address feeVault = vm.addr(13);
 
     IndexFactoryStorage store;
     IndexToken idx;
@@ -69,7 +70,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                         address(0xDEAD),
                         address(usdc),
                         bond,
-                        false
+                        feeVault
                     )
                 )
             );
@@ -202,7 +203,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0),
                     address(0),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -219,7 +220,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             address(impl),
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
-                (address(1), factory, address(0), address(1), vault, nexBot, address(2), address(3), bond, false)
+                (address(1), factory, address(0), address(1), vault, nexBot, address(2), address(3), bond, feeVault)
             )
         );
         vm.stopPrank();
@@ -460,7 +461,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(0xBEEF),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -486,7 +487,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(0xBEEF),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -520,7 +521,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(usdc),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -554,7 +555,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(usdc),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -667,7 +668,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0),
                     address(usdc),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -700,7 +701,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(0),
                     bond,
-                    false
+                    feeVault
                 )
             )
         );
@@ -734,7 +735,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
                     address(0xDEAD),
                     address(usdc),
                     address(0),
-                    false
+                    feeVault
                 )
             )
         );

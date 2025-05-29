@@ -52,8 +52,7 @@ contract FeeVaultTest is OlympixUnitTest("FeeVault") {
             address(4),
             address(usdc),
             address(5),
-            address(6),
-            false
+            address(6)
         );
 
         vault = FeeVault(

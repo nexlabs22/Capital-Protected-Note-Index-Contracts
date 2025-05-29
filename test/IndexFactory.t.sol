@@ -157,7 +157,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
             address(cr5),
             address(usdc),
             address(bond),
-            false
+            address(feeVault)
         );
         store.setFeeReceiver(feeRec);
 

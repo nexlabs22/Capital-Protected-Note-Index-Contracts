@@ -138,7 +138,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                         address(0xDEAD),
                         address(usdc),
                         address(bond),
-                        false
+                        feeVault
                     )
                 )
             );
@@ -676,7 +676,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                     address(0xDEAD),
                     address(usdc),
                     address(bond),
-                    false
+                    feeVault
                 )
             )
         );
@@ -992,7 +992,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                     address(0xDEAD),
                     address(usdc),
                     address(bond),
-                    false
+                    feeVault
                 )
             )
         );

@@ -85,9 +85,9 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _crypto5FactoryAddress,
         address _usdc,
         address _bond,
-        address _feeVault,
-        bool _isMainnet
+        address _feeVault
     ) external initializer {
+        // if (_indexToken != address(0)) revert InvalidAddress();
         require(_indexToken != address(0), "Invalid _indexToken address");
         require(_indexFactory != address(0), "Invalid _indexFactory address");
         require(_functionsOracle != address(0), "Invalid _functionsOracle address");
@@ -110,7 +110,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBot;
-        isMainnet = _isMainnet;
+        // isMainnet = _isMainnet;
         issuanceRoundId = 1;
         redemptionRoundId = 1;
         feeRate = 10;
