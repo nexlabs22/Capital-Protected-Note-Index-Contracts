@@ -139,4 +139,18 @@ contract FeeVaultTest is OlympixUnitTest("FeeVault") {
 
         assertEq(address(vault).balance, 0);
     }
+
+    function testInitializeRevertsOnZeroAddress() public {
+        ERC1967Proxy proxy = new ERC1967Proxy(address(new FeeVault()), "");
+        FeeVault newVault = FeeVault(address(proxy));
+        vm.expectRevert("FeeVault: zero addr");
+        newVault.initialize(address(0));
+    }
+
+    function testWithdrawEthRevertsIfAmountTooLarge() public {
+        deal(address(vault), 1 ether);
+        uint256 over = 1 ether + 1;
+        vm.expectRevert("Invalid amount");
+        vault.withdrawEth(owner, over);
+    }
 }

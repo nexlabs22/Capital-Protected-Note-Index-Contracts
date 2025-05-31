@@ -16,7 +16,8 @@ import {MockERC20} from "./mocks/MockERC20.sol";
 import {Token} from "./helpers/Token.sol";
 import "../src/factory/FunctionsOracle.sol";
 import "../src/interfaces/ICrypto5Factory.sol";
-import "../src/Vault/FeeVault.sol";
+// import "../src/Vault/FeeVault.sol";
+import "../src/vault/FeeVault.sol";
 import "./OlympixUnitTest.sol";
 
 error ZeroAmount();
@@ -706,5 +707,38 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.prank(bob);
         vm.expectRevert("Only requester can cancel");
         factory.cancelRedemption(nonce);
+    }
+
+    function test_initialize_revertsOnZeroIndexFactoryStorage() public {
+        address zero = address(0);
+        address someFeeVault = address(0x1234);
+        IndexFactory freshFactory = IndexFactory(address(new ERC1967Proxy(address(new IndexFactory()), "")));
+        vm.expectRevert(bytes("Invalid Address"));
+        freshFactory.initialize(zero, someFeeVault);
+    }
+
+    function test_initialize_revertsOnZeroFeeVault() public {
+        IndexFactory freshFactory = IndexFactory(address(new ERC1967Proxy(address(new IndexFactory()), "")));
+        vm.expectRevert(bytes("Invalid FeeVault"));
+        freshFactory.initialize(address(store), address(0));
+    }
+
+    function test_cancelRedemption_branch_amountIsZero() public {
+        uint256 nonce = 1;
+        vm.prank(address(factory));
+        store.setRedemptionRequesterByNonce(nonce, alice);
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("nothing to refund"));
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_setIssuanceFeeByNonce_FailsWhenSenderIsNotFactoryNexBotOrSCA() public {
+        uint256 nonce = 123;
+        uint256 fee = 4567;
+        address notAllowed = address(0xBEEF);
+        vm.prank(notAllowed);
+        vm.expectRevert("Caller is not a factory contract");
+        store.setIssuanceFeeByNonce(nonce, fee);
     }
 }

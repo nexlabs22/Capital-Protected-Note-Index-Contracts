@@ -501,7 +501,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         ERC1967Proxy proxyIdx = new ERC1967Proxy(
             address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
         );
-        IndexToken idx = IndexToken(address(proxyIdx));
+        IndexToken idx1 = IndexToken(address(proxyIdx));
         StagingCustodyAccount sca =
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
@@ -512,7 +512,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
                 (
-                    address(idx),
+                    address(idx1),
                     factory,
                     address(oracle),
                     address(sca),
@@ -535,7 +535,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         ERC1967Proxy proxyIdx = new ERC1967Proxy(
             address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
         );
-        IndexToken idx = IndexToken(address(proxyIdx));
+        IndexToken idx1 = IndexToken(address(proxyIdx));
         StagingCustodyAccount sca =
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
@@ -546,7 +546,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
                 (
-                    address(idx),
+                    address(idx1),
                     factory,
                     address(oracle),
                     address(sca),
@@ -648,7 +648,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         ERC1967Proxy proxyIdx = new ERC1967Proxy(
             address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
         );
-        IndexToken idx = IndexToken(address(proxyIdx));
+        IndexToken idx1 = IndexToken(address(proxyIdx));
         StagingCustodyAccount sca =
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
@@ -659,7 +659,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
                 (
-                    address(idx),
+                    address(idx1),
                     factory,
                     address(oracle),
                     address(sca),
@@ -682,7 +682,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         ERC1967Proxy proxyIdx = new ERC1967Proxy(
             address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
         );
-        IndexToken idx = IndexToken(address(proxyIdx));
+        IndexToken idx1 = IndexToken(address(proxyIdx));
         StagingCustodyAccount sca =
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         IndexFactoryStorage impl = new IndexFactoryStorage();
@@ -692,7 +692,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
                 (
-                    address(idx),
+                    address(idx1),
                     factory,
                     address(oracle),
                     address(sca),
@@ -715,7 +715,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         ERC1967Proxy proxyIdx = new ERC1967Proxy(
             address(implIdx), abi.encodeCall(IndexToken.initialize, ("IndexToken", "IDX", 5e14, newRecv, 10e18))
         );
-        IndexToken idx = IndexToken(address(proxyIdx));
+        IndexToken idx1 = IndexToken(address(proxyIdx));
         StagingCustodyAccount sca =
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
@@ -726,7 +726,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
             abi.encodeCall(
                 IndexFactoryStorage.initialize,
                 (
-                    address(idx),
+                    address(idx1),
                     factory,
                     address(oracle),
                     address(sca),
@@ -779,7 +779,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     }
 
     function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero_LastAddress() public {
-        address charlie = vm.addr(6);
+        // address charlie = vm.addr(6);
         vm.startPrank(factory);
         store.addRedemptionForCurrentRound(alice, 100);
         store.addRedemptionForCurrentRound(bob, 50);
