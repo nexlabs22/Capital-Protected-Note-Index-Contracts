@@ -65,7 +65,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
     modifier onlyOwnerOrOperator() {
         require(
-            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender),
+            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender)
+                || msg.sender == address(factoryStorage.factoryBalancer()),
             "Caller is not the owner or operator"
         );
         _;
@@ -177,6 +178,20 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         emit CancelRedemptionCompleted(
             nonce, requester, address(factoryStorage.indexToken()), amount, 0, block.timestamp
         );
+    }
+
+    /**
+     * @dev Pauses the contract.
+     */
+    function pause() external onlyOwnerOrOperator {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses the contract.
+     */
+    function unpause() external onlyOwnerOrOperator {
+        _unpause();
     }
 
     function increaseCurrentRoundId() external onlyOwnerOrOperator {

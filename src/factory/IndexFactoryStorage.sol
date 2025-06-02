@@ -12,6 +12,7 @@ import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
 import {FeeVault} from "../vault/FeeVault.sol";
+import {IndexFactoryBalancer} from "./IndexFactoryBalancer.sol";
 
 error InvalidAddress();
 error ZeroAmount();
@@ -24,6 +25,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     FunctionsOracle public functionsOracle;
     StagingCustodyAccount public sca;
     FeeVault public feeVault;
+    IndexFactoryBalancer public factoryBalancer;
     IERC20 public usdc;
 
     address public bond;
