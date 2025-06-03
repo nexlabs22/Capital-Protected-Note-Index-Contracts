@@ -9,7 +9,7 @@ import "../src/vault/Vault.sol";
 import "./mocks/MockERC20.sol";
 import "./OlympixUnitTest.sol";
 
-contract VaultTest is OlympixUnitTest("Vault") {
+contract VaultTest is Test {
     Vault vault;
     MockERC20 token;
     address operator = address(0x1);

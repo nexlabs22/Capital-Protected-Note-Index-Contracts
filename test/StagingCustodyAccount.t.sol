@@ -1012,4 +1012,119 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 val = store.getPortfolioValue(bondPrice, crypto5Price);
         assertEq(val, expected);
     }
+
+    function test_completeIssuance_branch_240_True() public {
+        uint256 bondPrice = 2e18;
+        uint256 crypto5Price = 1e18;
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(bob, idxBob);
+
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(1, true);
+        vm.prank(address(factory));
+        store.setIssuanceCompleted(1, false);
+
+        vm.prank(address(factory));
+        store.increaseIssuanceRoundId();
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addIssuanceForCurrentRound(bob, idxBob);
+        vm.prank(address(factory));
+        store.setIssuancenRoundActive(2, false);
+        vm.prank(address(factory));
+        store.setIssuanceCompleted(2, false);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Prev round still active");
+        sca.completeIssuance(2, bondPrice, crypto5Price);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_303_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, true);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, false);
+
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(2, false);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Prev redemption round active");
+        sca.completeRedemption(2, 0, 0);
+        vm.stopPrank();
+    }
+
+    function test_completeRedemption_branch_304_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, false);
+
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(2, false);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Prev redemption not completed");
+        sca.completeRedemption(2, 0, 0);
+        vm.stopPrank();
+    }
+
+    function test_requestRedemption_branch_370_True() public {
+        uint256 idxAlice = 100 ether;
+        uint256 idxBob = 50 ether;
+        _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        vm.prank(address(factory));
+        store.setRedemptionCompleted(1, true);
+        vm.prank(address(factory));
+        store.increaseRedemptionRoundId();
+
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(alice, idxAlice);
+        vm.prank(address(factory));
+        store.addRedemptionForCurrentRound(bob, idxBob);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(2, true);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, true);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Prev redemption round active");
+        sca.requestRedemption(2, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
 }

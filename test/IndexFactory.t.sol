@@ -741,4 +741,20 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.expectRevert("Caller is not a factory contract");
         store.setIssuanceFeeByNonce(nonce, fee);
     }
+
+    function test_unpause_requiresOwnerOrOperator() public {
+        vm.startPrank(alice);
+        vm.expectRevert("Caller is not the owner or operator");
+        factory.unpause();
+        vm.stopPrank();
+    }
+
+    function test_unpause_ownerCanUnpause() public {
+        vm.prank(address(this));
+        factory.pause();
+        assertTrue(factory.paused());
+        vm.prank(address(this));
+        factory.unpause();
+        assertFalse(factory.paused());
+    }
 }
