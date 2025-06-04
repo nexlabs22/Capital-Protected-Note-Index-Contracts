@@ -31,7 +31,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         Vault vault;
         StagingCustodyAccount sca;
         IERC20 usdc;
-        address[] path; // CR5→USDC path
+        address[] path;
         uint24[] poolFees;
     }
 
@@ -278,18 +278,18 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     }
 
     function pauseIndexFactory() internal {
-        address indexFactoryAddress = address(factoryStorage.indexFactory());
-        IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
-        if (!indexFactory.paused()) {
-            indexFactory.pause();
+        // address indexFactoryAddress = address(factoryStorage.indexFactory());
+        // IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
+        if (!factoryStorage.indexFactory().paused()) {
+            factoryStorage.indexFactory().pause();
         }
     }
 
     function unpauseIndexFactory() internal {
-        address indexFactoryAddress = address(factoryStorage.indexFactory());
-        IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
-        if (indexFactory.paused()) {
-            indexFactory.unpause();
+        // address indexFactoryAddress = address(factoryStorage.indexFactory());
+        // IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
+        if (factoryStorage.indexFactory().paused()) {
+            factoryStorage.indexFactory().unpause();
         }
     }
 }

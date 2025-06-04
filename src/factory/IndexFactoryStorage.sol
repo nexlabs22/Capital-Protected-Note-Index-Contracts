@@ -71,7 +71,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     modifier onlyOwnerOrOperator() {
         require(
-            msg.sender == owner() || functionsOracle.isOperator(msg.sender) || msg.sender == nexBot,
+            msg.sender == owner() || functionsOracle.isOperator(msg.sender) || msg.sender == nexBot
+                || msg.sender == address(factoryBalancer),
             "Caller is not the owner or operator"
         );
         _;
@@ -87,10 +88,11 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _crypto5FactoryAddress,
         address _usdc,
         address _bond,
-        address _feeVault
+        address _feeVault,
+        address _indexFactoryBalancer
     ) external initializer {
         // if (_indexToken != address(0)) revert InvalidAddress();
-        require(_indexToken != address(0), "Invalid _indexToken address");
+        // require(_indexToken != address(0), "Invalid _indexToken address");
         require(_indexFactory != address(0), "Invalid _indexFactory address");
         require(_functionsOracle != address(0), "Invalid _functionsOracle address");
         require(_stagingCustodyAccount != address(0), "Invalid _stagingCustodyAccount address");
@@ -109,6 +111,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         vault = Vault(_vault);
         usdc = IERC20(_usdc);
         bond = _bond;
+
+        factoryBalancer = IndexFactoryBalancer(_indexFactoryBalancer);
 
         crypto5FactoryAddress = _crypto5FactoryAddress;
         nexBot = _nexBot;
