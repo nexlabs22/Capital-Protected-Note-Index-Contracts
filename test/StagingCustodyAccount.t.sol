@@ -43,7 +43,7 @@ contract TestFunctionsOracle is FunctionsOracle {
     }
 }
 
-contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
+contract StagingCustodyAccountTest is Test {
     address admin = vm.addr(1);
     address bot = vm.addr(2);
     // address factory = vm.addr(3);
@@ -138,7 +138,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                         address(0xDEAD),
                         address(usdc),
                         address(bond),
-                        feeVault
+                        feeVault,
+                        address(1)
                     )
                 )
             );
@@ -676,7 +677,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                     address(0xDEAD),
                     address(usdc),
                     address(bond),
-                    feeVault
+                    feeVault,
+                    address(1)
                 )
             )
         );
@@ -992,7 +994,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
                     address(0xDEAD),
                     address(usdc),
                     address(bond),
-                    feeVault
+                    feeVault,
+                    address(1)
                 )
             )
         );

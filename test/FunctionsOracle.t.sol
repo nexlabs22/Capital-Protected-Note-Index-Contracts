@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/factory/FunctionsOracle.sol";
+import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import "./OlympixUnitTest.sol";
 
 contract OracleHarness is FunctionsOracle {

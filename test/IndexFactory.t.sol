@@ -14,11 +14,10 @@ import {Vault} from "../src/vault/Vault.sol";
 import {LinkToken} from "./helpers/LinkToken.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {Token} from "./helpers/Token.sol";
-import "../src/factory/FunctionsOracle.sol";
-import "../src/interfaces/ICrypto5Factory.sol";
-// import "../src/Vault/FeeVault.sol";
-import "../src/vault/FeeVault.sol";
-import "./OlympixUnitTest.sol";
+import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
+import {ICrypto5Factory} from "../src/interfaces/ICrypto5Factory.sol";
+import {FeeVault} from "../src/vault/FeeVault.sol";
+import {OlympixUnitTest} from "./OlympixUnitTest.sol";
 
 error ZeroAmount();
 
@@ -79,13 +78,12 @@ contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
+contract IndexFactoryTest is Test {
     address owner = address(this);
     address feeRec = vm.addr(1);
     address nexBot = vm.addr(2);
     address alice = vm.addr(3);
     address bob = vm.addr(4);
-    // address feeVault = vm.addr(5);
 
     MockUSDC usdc;
     MockBond bond;
@@ -97,7 +95,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     IndexFactory factory;
     Vault vault;
     TestFunctionsOracle oracle;
-    // FunctionsOracle oracle;
     LinkToken link;
     Token token0;
     Token token1;
@@ -110,7 +107,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         bond = new MockBond();
         idxc5 = new MockIDXc5();
         cr5 = new DummyCrypto5Factory(address(idxc5));
-        // feeVault = new FeeVault();
 
         vault = Vault(address(new ERC1967Proxy(address(new Vault()), abi.encodeCall(Vault.initialize, (owner)))));
 
@@ -158,7 +154,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
             address(cr5),
             address(usdc),
             address(bond),
-            address(feeVault)
+            address(feeVault),
+            address(1)
         );
         store.setFeeReceiver(feeRec);
 

@@ -6,8 +6,8 @@ import "forge-std/Test.sol";
 import {FeeVault} from "../src/vault/FeeVault.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
@@ -52,7 +52,8 @@ contract FeeVaultTest is OlympixUnitTest("FeeVault") {
             address(4),
             address(usdc),
             address(5),
-            address(6)
+            address(6),
+            address(7)
         );
 
         vault = FeeVault(
