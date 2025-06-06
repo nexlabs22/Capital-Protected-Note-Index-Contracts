@@ -35,6 +35,12 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint24[] poolFees;
     }
 
+    struct Vars {
+        uint256 usdcBal;
+        bool bondDeficit;
+        bool cr5Deficit;
+    }
+
     uint256 constant ONE_BPS_1e18 = 1e18;
 
     mapping(uint256 => RebalanceBatch) private _rebalanceBatches;
@@ -177,85 +183,67 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         emit FirstRebalanceAction(nonce, soldTok, soldQty, batch.totalUsdcObtained, block.timestamp);
     }
 
-    // function firstRebalanceAction(
-    //     uint256 bondPrice,
-    //     uint256 crypto5Price,
-    //     address[] calldata _tokenInPath,
-    //     uint24[] calldata _tokenInFees
-    // ) external nonReentrant whenNotPaused returns (uint256 nonce) {
-    //     pauseIndexFactory();
+    function _mintCrypto5(uint256 amountUsdc, address[] calldata path, uint24[] calldata fees, uint256 msgValue)
+        internal
+    {
+        StagingCustodyAccount sca = factoryStorage.sca();
 
-    //     nonce = ++rebalanceNonce;
-    //     RebalanceBatch storage batch = _rebalanceBatches[nonce];
-    //     require(!batch.firstDone, "already done");
+        IERC20 usdc = factoryStorage.usdc();
+        usdc.safeTransfer(address(sca), amountUsdc);
 
-    //     uint256 portfolioUSD = factoryStorage.getPortfolioValue(bondPrice, crypto5Price);
+        uint256 feeEth = factoryStorage.getIssuanceFee(address(usdc), path, fees, amountUsdc);
+        require(msgValue == feeEth, "wrong ETH fee");
 
-    //     uint256 n = functionsOracle.totalCurrentList();
-    //     address[] memory soldTokens = new address[](n);
-    //     uint256[] memory soldAmounts = new uint256[](n);
-    //     uint256 sellIdx;
+        sca.issuanceCrypto5{value: feeEth}(amountUsdc, path, fees);
+    }
 
-    //     Vault vault = factoryStorage.vault();
-    //     StagingCustodyAccount sca = factoryStorage.sca();
-    //     IERC20 usdc = factoryStorage.usdc();
+    function secondRebalanceAction(uint256 batchId, address[] calldata tokenInPath, uint24[] calldata tokenInFees)
+        external
+        payable
+        nonReentrant /*onlyOwnerOrOperator*/
+    {
+        RebalanceBatch storage batch = _rebalanceBatches[batchId];
+        require(batch.firstDone, "rebalance: phase-1 not done");
+        require(!batch.secondDone, "rebalance: phase-2 already done");
 
-    //     for (uint256 i; i < n; ++i) {
-    //         address token = functionsOracle.currentList(i);
-    //         uint256 currBps = functionsOracle.tokenCurrentMarketShare(token);
-    //         uint256 targetBps = functionsOracle.tokenOracleMarketShare(token);
+        IERC20 usdc = factoryStorage.usdc();
+        uint256 bal = usdc.balanceOf(address(this));
+        if (bal == 0) revert("no USDC to deploy");
 
-    //         if (currBps <= targetBps) continue; // not overweight
+        Vars memory v;
+        v.usdcBal = bal;
 
-    //         uint256 excessBps = currBps - targetBps;
-    //         uint256 usdToSell = portfolioUSD * excessBps / ONE_BPS_1e18;
+        address bondTok = factoryStorage.bond();
+        address cr5Tok = address(factoryStorage.indexToken());
 
-    //         uint8 aType = functionsOracle.tokenAssetType(token);
-    //         if (aType == 0) {
-    //             uint256 qty = usdToSell * 1e18 / bondPrice;
-    //             batch.tokenDelta[token] = qty;
-    //             vault.withdrawFunds(token, address(this), qty);
-    //             batch.totalUsdcObtained += usdToSell;
-    //             soldTokens[sellIdx] = token;
-    //             soldAmounts[sellIdx] = qty;
-    //             ++sellIdx;
-    //         } else if (aType == 1) {
-    //             uint256 idxToRedeem = usdToSell * 1e18 / crypto5Price;
-    //             batch.tokenDelta[token] = idxToRedeem;
+        v.bondDeficit =
+            functionsOracle.tokenCurrentMarketShare(bondTok) < functionsOracle.tokenOracleMarketShare(bondTok);
 
-    //             vault.withdrawFunds(token, address(sca), idxToRedeem);
+        v.cr5Deficit = functionsOracle.tokenCurrentMarketShare(cr5Tok) < functionsOracle.tokenOracleMarketShare(cr5Tok);
 
-    //             uint256 fee = factoryStorage.getRedemptionFee(idxToRedeem);
-    //             sca.redemptionCrypto5{value: fee}(idxToRedeem, address(usdc), _tokenInPath, _tokenInFees);
-    //             batch.totalUsdcObtained += usdToSell;
-    //             soldTokens[sellIdx] = token;
-    //             soldAmounts[sellIdx] = idxToRedeem;
-    //             ++sellIdx;
-    //         }
-    //     }
+        if (v.bondDeficit) {
+            require(msg.value == 0, "unexpected ETH fee");
+            usdc.safeTransfer(factoryStorage.nexBot(), v.usdcBal);
+            batch.tokenDelta[bondTok] = 0;
+        } else if (v.cr5Deficit) {
+            _mintCrypto5(v.usdcBal, tokenInPath, tokenInFees, msg.value);
+            batch.tokenDelta[cr5Tok] = 0;
+        } else {
+            require(msg.value == 0, "unexpected ETH fee");
+            usdc.safeTransfer(address(factoryStorage.vault()), v.usdcBal);
+        }
 
-    //     batch.firstDone = true;
+        batch.secondDone = true;
+        emit SecondRebalanceAction(batchId, block.timestamp);
+    }
 
-    //     assembly {
-    //         mstore(soldTokens, sellIdx)
-    //         mstore(soldAmounts, sellIdx)
-    //     }
+    // function secondRebalanceAction(uint256 _rebalanceNonce) public nonReentrant /*onlyOwnerOrOperator*/ {
+    //     RebalanceBatch storage batch = _rebalanceBatches[_rebalanceNonce];
+    //     require(batch.firstDone, "phase-1 not done");
+    //     require(!batch.secondDone, "already done");
 
-    //     emit FirstRebalanceAction(nonce, soldTokens, soldAmounts, batch.totalUsdcObtained, block.timestamp);
+    //     emit SecondRebalanceAction(_rebalanceNonce, block.timestamp);
     // }
-
-    function secondRebalanceAction(uint256 _rebalanceNonce) public nonReentrant /*onlyOwnerOrOperator*/ {
-        RebalanceBatch storage batch = _rebalanceBatches[_rebalanceNonce];
-        require(batch.firstDone, "phase-1 not done");
-        require(!batch.secondDone, "already done");
-
-        emit SecondRebalanceAction(_rebalanceNonce, block.timestamp);
-    }
-
-    function completeRebalanceActions(uint256 _rebalanceNonce) public nonReentrant /*onlyOwnerOrOperator*/ {
-        unpauseIndexFactory();
-        emit CompleteRebalanceActions(_rebalanceNonce, block.timestamp);
-    }
 
     function checkFirstRebalanceOrdersStatus(uint256 _rebalanceNonce) public view returns (bool) {
         require(_rebalanceNonce <= rebalanceNonce, "Wrong rebalance nonce!");
