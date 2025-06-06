@@ -102,6 +102,10 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
             address(balancer)
         );
 
+        vm.roll(12 hours);
+
+        // store.setFeeRate(0);
+
         factory.initialize(address(store), address(feeVault));
 
         sca.initialize(address(store));
@@ -111,6 +115,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         vm.startPrank(oracle.owner());
         oracle.setOperator(address(balancer), true);
         oracle.setOperator(address(factory), true);
+        oracle.setFactoryBalancer(address(balancer));
         vm.stopPrank();
 
         vm.deal(address(balancer), 1 ether);
@@ -132,13 +137,16 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
             oracle.setCurrent(address(cr5), 30e16);
         }
 
-        bond.mint(address(vault), 100 * ONE_18);
-        cr5.mint(address(vault), 50 * ONE_18);
+        // bond.mint(address(vault), 100 * ONE_18);
+        // cr5.mint(address(vault), 50 * ONE_18);
     }
 
     function test_firstRebalanceAction() public {
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
+
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
 
         uint256 bondBefore = bond.balanceOf(address(vault));
         uint256 cr5Before = cr5.balanceOf(address(vault));
@@ -196,6 +204,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         oracle.setCurrent(address(bond), 80e16); // 80% == 80%
         oracle.setCurrent(address(cr5), 20e16); // 20% == 20%
 
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
+
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
 
@@ -229,6 +240,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_checkFirstRebalanceOrdersStatus_branch_True() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
@@ -243,6 +256,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_checkSecondRebalanceOrdersStatus_branch_true() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
@@ -269,6 +284,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_pauseIndexFactory_branch_301_else() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
+
         vm.startPrank(address(this));
         factory.pause();
         vm.stopPrank();
@@ -290,6 +308,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_secondRebalanceAction_branch_220_false() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
@@ -303,6 +323,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_secondRebalanceAction_branch_224_true() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
@@ -313,6 +335,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_secondRebalanceAction_branch_250_else() public {
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
@@ -324,5 +348,116 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
         uint256 vaultUsdcAfter = usdc.balanceOf(address(vault));
         assertEq(vaultUsdcAfter, vaultUsdcBefore + 100 * ONE_USDC, "USDC should be parked in Vault");
+    }
+
+    function test_secondRebalanceAction_bondDeficit_transfersToNexBot() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
+
+        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+
+        uint256 proceeds = 200 * ONE_USDC;
+        usdc.mint(address(balancer), proceeds);
+
+        oracle.setCurrent(address(bond), 70e16); // 70 %
+        oracle.setCurrent(address(cr5), 30e16); // 30 %
+
+        uint256 nexBotBefore = usdc.balanceOf(nexBot);
+
+        vm.prank(address(this));
+        balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+
+        assertEq(usdc.balanceOf(address(balancer)), 0, "Balancer should hold no USDC");
+        assertEq(usdc.balanceOf(nexBot), nexBotBefore + proceeds, "nexBot should receive USDC");
+    }
+
+    function test_secondRebalanceAction_cr5Deficit_mintsCrypto5() public {
+        uint256 pBond = 2 * ONE_18; // bERNX = $2
+        uint256 pCr5 = 1 * ONE_18; // CR-5 = $1
+
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
+
+        uint8[] memory ty = new uint8[](2);
+        address[] memory tk = new address[](2);
+        uint256[] memory wt = new uint256[](2);
+
+        ty[0] = 0;
+        tk[0] = address(bond);
+        wt[0] = 80e16; // 80 %
+        ty[1] = 1;
+        tk[1] = address(idx);
+        wt[1] = 20e16; // 20 %
+        oracle.seed(ty, tk, wt);
+
+        oracle.setCurrent(address(bond), 90e16); // 90 %
+        oracle.setCurrent(address(idx), 10e16); // 10 %
+
+        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+
+        uint256 proceeds = 150 * ONE_USDC;
+        usdc.mint(address(balancer), proceeds);
+
+        uint256 fee = store.getIssuanceFee(address(usdc), new address[](0), new uint24[](0), proceeds);
+
+        uint256 scaUsdcBefore = usdc.balanceOf(address(sca));
+
+        vm.prank(address(this));
+        balancer.secondRebalanceAction{value: fee}(nonce, new address[](0), new uint24[](0));
+
+        assertEq(usdc.balanceOf(address(balancer)), 0, "USDC should be emptied from Balancer");
+
+        assertEq(usdc.balanceOf(address(sca)), scaUsdcBefore + proceeds, "SCA must receive all USDC");
+    }
+
+    function test_completeRebalanceActions_transfersAndUnpauses() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+
+        bond.mint(address(vault), 100 * ONE_18);
+        cr5.mint(address(vault), 50 * ONE_18);
+
+        oracle.setCurrent(address(bond), 75e16); // 75 %
+        oracle.setCurrent(address(cr5), 25e16); // 25 %
+
+        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+
+        uint256 nav = 250 * ONE_18;
+        uint256 sold = _calcSoldCr5(nav, 5e16, /*5 %*/ pCr5);
+        uint256 wantC = 50 * ONE_18 - sold;
+
+        assertEq(bond.balanceOf(address(vault)), 100 * ONE_18, "Vault bERNX unchanged");
+        assertEq(cr5.balanceOf(address(vault)), wantC, "Vault CR-5 reduced");
+
+        uint256 proceeds = 200 * ONE_USDC;
+        usdc.mint(address(balancer), proceeds);
+        uint256 nexBotPre = usdc.balanceOf(nexBot);
+
+        balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+
+        assertEq(usdc.balanceOf(nexBot), nexBotPre + proceeds, "nexBot paid");
+
+        uint256 fresh = 5 * ONE_18;
+        bond.mint(address(balancer), fresh);
+
+        uint256 bondPre = bond.balanceOf(address(vault));
+        uint256 cr5Pre = cr5.balanceOf(address(vault));
+
+        balancer.completeRebalanceActions(nonce);
+
+        assertEq(bond.balanceOf(address(balancer)), 0, "balancer bond 0");
+        assertEq(cr5.balanceOf(address(balancer)), 0, "balancer cr-5 0");
+
+        assertEq(bond.balanceOf(address(vault)), bondPre + fresh, "vault got bonds");
+        assertEq(cr5.balanceOf(address(vault)), cr5Pre, "vault CR-5 unchanged");
+        assertTrue(!factory.paused(), "factory un-paused");
+    }
+
+    function _calcSoldCr5(uint256 nav18, uint256 overweight1e18, uint256 price18) internal pure returns (uint256) {
+        uint256 usdToSell18 = nav18 * overweight1e18 / 1e18;
+        return usdToSell18 * 1e18 / price18;
     }
 }

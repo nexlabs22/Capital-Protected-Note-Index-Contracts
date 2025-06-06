@@ -2,13 +2,12 @@
 pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {FeeVault} from "../src/vault/FeeVault.sol";
 import {IndexFactoryStorage} from "../src/factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 import "./OlympixUnitTest.sol";
@@ -17,7 +16,7 @@ contract DummyIndexFactory {}
 
 error OwnableUnauthorizedAccount(address account);
 
-contract FeeVaultTest is OlympixUnitTest("FeeVault") {
+contract FeeVaultTest is Test {
     address owner = address(this);
     address operator = vm.addr(1);
     address nexBot = vm.addr(2);
