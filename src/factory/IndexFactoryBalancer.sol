@@ -57,13 +57,14 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     event SecondRebalanceAction(uint256 nonce, uint256 time);
     event CompleteRebalanceActions(uint256 nonce, uint256 time);
 
-    // modifier onlyOwnerOrOperator() {
-    //     require(
-    //         msg.sender == owner() || functionsOracle.isOperator(msg.sender),
-    //         "Only owner or operator can call this function"
-    //     );
-    //     _;
-    // }
+    modifier onlyOwnerOrOperator() {
+        require(
+            msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender)
+                || msg.sender == address(factoryStorage.factoryBalancer()),
+            "Caller is not the owner or operator"
+        );
+        _;
+    }
 
     function initialize(address _factoryStorage, address _functionsOracle) external initializer {
         require(_factoryStorage != address(0), "invalid token address");
@@ -139,7 +140,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint256 cryptoPrice18,
         address[] calldata tokenInPath,
         uint24[] calldata tokenInFees
-    ) external nonReentrant whenNotPaused returns (uint256 nonce) {
+    ) external nonReentrant whenNotPaused onlyOwnerOrOperator returns (uint256 nonce) {
         pauseIndexFactory();
 
         Ctx memory ctx = Ctx({
@@ -200,7 +201,8 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     function secondRebalanceAction(uint256 batchId, address[] calldata tokenInPath, uint24[] calldata tokenInFees)
         external
         payable
-        nonReentrant /*onlyOwnerOrOperator*/
+        nonReentrant
+        onlyOwnerOrOperator
     {
         RebalanceBatch storage batch = _rebalanceBatches[batchId];
         require(batch.firstDone, "rebalance: phase-1 not done");
@@ -237,13 +239,25 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         emit SecondRebalanceAction(batchId, block.timestamp);
     }
 
-    // function secondRebalanceAction(uint256 _rebalanceNonce) public nonReentrant /*onlyOwnerOrOperator*/ {
-    //     RebalanceBatch storage batch = _rebalanceBatches[_rebalanceNonce];
-    //     require(batch.firstDone, "phase-1 not done");
-    //     require(!batch.secondDone, "already done");
+    function completeRebalanceActions(uint256 batchId) external nonReentrant onlyOwnerOrOperator {
+        RebalanceBatch storage batch = _rebalanceBatches[batchId];
+        require(batch.secondDone, "rebalance: phase-2 not done");
 
-    //     emit SecondRebalanceAction(_rebalanceNonce, block.timestamp);
-    // }
+        Vault vault = factoryStorage.vault();
+        uint256 compCnt = functionsOracle.totalCurrentList();
+
+        for (uint256 i; i < compCnt; ++i) {
+            address tok = functionsOracle.currentList(i);
+            uint256 bal = IERC20(tok).balanceOf(address(this));
+            if (bal > 0) IERC20(tok).safeTransfer(address(vault), bal);
+        }
+
+        functionsOracle.updateCurrentList();
+
+        unpauseIndexFactory();
+
+        emit CompleteRebalanceActions(batchId, block.timestamp);
+    }
 
     function checkFirstRebalanceOrdersStatus(uint256 _rebalanceNonce) public view returns (bool) {
         require(_rebalanceNonce <= rebalanceNonce, "Wrong rebalance nonce!");
@@ -266,16 +280,12 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     }
 
     function pauseIndexFactory() internal {
-        // address indexFactoryAddress = address(factoryStorage.indexFactory());
-        // IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
         if (!factoryStorage.indexFactory().paused()) {
             factoryStorage.indexFactory().pause();
         }
     }
 
     function unpauseIndexFactory() internal {
-        // address indexFactoryAddress = address(factoryStorage.indexFactory());
-        // IndexFactory indexFactory = IndexFactory(payable(indexFactoryAddress));
         if (factoryStorage.indexFactory().paused()) {
             factoryStorage.indexFactory().unpause();
         }

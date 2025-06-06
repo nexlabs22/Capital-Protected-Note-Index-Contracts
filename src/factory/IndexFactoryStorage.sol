@@ -36,6 +36,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     uint256 public redemptionRoundId;
     address public nexBot;
     bool public isMainnet;
+    uint256 public latestFeeUpdate;
 
     mapping(uint256 => bool) public issuanceIsCompleted;
     mapping(uint256 => bool) public redemptionIsCompleted;
@@ -126,6 +127,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
+    }
+
+    function setFeeRate(uint8 _newFee) public onlyOwner {
+        uint256 distance = block.timestamp - latestFeeUpdate;
+        require(distance / 60 / 60 >= 12, "You should wait at least 12 hours after the latest update");
+        require(_newFee <= 10000 && _newFee >= 1, "The newFee should be between 1 and 100 (0.01% - 1%)");
+        feeRate = _newFee;
+        latestFeeUpdate = block.timestamp;
     }
 
     function setNexBotAddress(address _newNexBotAddress) public onlyOwner {
