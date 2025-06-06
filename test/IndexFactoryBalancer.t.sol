@@ -222,26 +222,6 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         require(ok, "FirstRebalanceAction not logged");
     }
 
-    function test_secondRebalanceAction_branch_firstDone_true() public {
-        uint256 pBond = 2 * ONE_18;
-        uint256 pCr5 = 1 * ONE_18;
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
-        vm.recordLogs();
-        balancer.secondRebalanceAction(nonce);
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 sig = keccak256("SecondRebalanceAction(uint256,uint256)");
-        bool found;
-        for (uint256 i = 0; i < logs.length; ++i) {
-            if (logs[i].topics[0] == sig) {
-                (uint256 evNonce, uint256 ts) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(evNonce, nonce, "Event nonce mismatch");
-                found = true;
-                break;
-            }
-        }
-        require(found, "SecondRebalanceAction event not emitted");
-    }
-
     function test_checkFirstRebalanceOrdersStatus_branch_revert() public {
         uint256 invalidNonce = 1;
         vm.expectRevert("Wrong rebalance nonce!");
@@ -299,17 +279,50 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
     }
 
-    function test_unpauseIndexFactory_branch309_true() public {
-        IndexFactory indexFactory = IndexFactory(payable(address(store.indexFactory())));
-        if (!indexFactory.paused()) {
-            indexFactory.pause();
-        }
-        assertTrue(indexFactory.paused(), "IndexFactory should be paused before test");
+    function test_initialize_branch_factoryStorage_zero_address() public {
+        IndexFactoryBalancer impl = new IndexFactoryBalancer();
+        address zeroFactoryStorage = address(0);
+        address validOracle = address(oracle);
+        vm.expectRevert(bytes("invalid token address"));
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(IndexFactoryBalancer.initialize, (zeroFactoryStorage, validOracle))
+        );
+    }
 
+    function test_secondRebalanceAction_branch_220_false() public {
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
         uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
-        balancer.completeRebalanceActions(nonce);
-        assertTrue(!indexFactory.paused(), "IndexFactory should be unpaused after completeRebalanceActions");
+
+        usdc.mint(address(balancer), 100 * ONE_USDC);
+        oracle.setCurrent(address(bond), 70e16);
+        vm.prank(address(this));
+        balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+        vm.expectRevert("rebalance: phase-2 already done");
+        balancer.secondRebalanceAction(nonce, new address[](0), new uint24[](0));
+    }
+
+    function test_secondRebalanceAction_branch_224_true() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+
+        oracle.setCurrent(address(bond), 70e16);
+        vm.expectRevert(bytes("no USDC to deploy"));
+        balancer.secondRebalanceAction(nonce, new address[](0), new uint24[](0));
+    }
+
+    function test_secondRebalanceAction_branch_250_else() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        usdc.mint(address(balancer), 100 * ONE_USDC);
+        oracle.setCurrent(address(bond), 80e16);
+        oracle.setCurrent(address(cr5), 20e16);
+        uint256 vaultUsdcBefore = usdc.balanceOf(address(vault));
+        vm.prank(address(this));
+        balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+        uint256 vaultUsdcAfter = usdc.balanceOf(address(vault));
+        assertEq(vaultUsdcAfter, vaultUsdcBefore + 100 * ONE_USDC, "USDC should be parked in Vault");
     }
 }
