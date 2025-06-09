@@ -38,7 +38,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     struct Vars {
         uint256 usdcBal;
         bool bondDeficit;
-        bool cr5Deficit;
+        bool riskAssetDeficit;
     }
 
     uint256 constant ONE_BPS_1e18 = 1e18;
@@ -104,7 +104,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         if (functionsOracle.tokenAssetType(token) == 0) {
             qty18Sold = _sellBond(nonce, token, usdCut18, ctx);
         } else {
-            qty18Sold = _redeemCR5(nonce, token, usdCut18, ctx);
+            qty18Sold = _redeemRiskAsset(nonce, token, usdCut18, ctx);
         }
         sold = true;
     }
@@ -120,19 +120,19 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         ctx.vault.withdrawFunds(bondToken, address(this), qty18);
     }
 
-    function _redeemCR5(uint256 nonce, address cr5Token, uint256 usdCut18, Ctx memory ctx)
+    function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
         internal
         returns (uint256 qty18)
     {
         qty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
         RebalanceBatch storage b = _rebalanceBatches[nonce];
-        b.tokenDelta[cr5Token] = qty18;
+        b.tokenDelta[riskAssetToken] = qty18;
         b.totalUsdcObtained += usdCut18;
 
-        ctx.vault.withdrawFunds(cr5Token, address(ctx.sca), qty18);
+        ctx.vault.withdrawFunds(riskAssetToken, address(ctx.sca), qty18);
 
         uint256 ethFee = factoryStorage.getRedemptionFee(qty18);
-        ctx.sca.redemptionCrypto5{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+        ctx.sca.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
     }
 
     function firstRebalanceAction(
@@ -195,7 +195,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint256 feeEth = factoryStorage.getIssuanceFee(address(usdc), path, fees, amountUsdc);
         require(msgValue == feeEth, "wrong ETH fee");
 
-        sca.issuanceCrypto5{value: feeEth}(amountUsdc, path, fees);
+        sca.issuanceRiskAsset{value: feeEth}(amountUsdc, path, fees);
     }
 
     function secondRebalanceAction(uint256 batchId, address[] calldata tokenInPath, uint24[] calldata tokenInFees)
@@ -216,20 +216,21 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         v.usdcBal = bal;
 
         address bondTok = factoryStorage.bond();
-        address cr5Tok = address(factoryStorage.indexToken());
+        address riskAssetTok = address(factoryStorage.indexToken());
 
         v.bondDeficit =
             functionsOracle.tokenCurrentMarketShare(bondTok) < functionsOracle.tokenOracleMarketShare(bondTok);
 
-        v.cr5Deficit = functionsOracle.tokenCurrentMarketShare(cr5Tok) < functionsOracle.tokenOracleMarketShare(cr5Tok);
+        v.riskAssetDeficit =
+            functionsOracle.tokenCurrentMarketShare(riskAssetTok) < functionsOracle.tokenOracleMarketShare(riskAssetTok);
 
         if (v.bondDeficit) {
             require(msg.value == 0, "unexpected ETH fee");
             usdc.safeTransfer(factoryStorage.nexBot(), v.usdcBal);
             batch.tokenDelta[bondTok] = 0;
-        } else if (v.cr5Deficit) {
+        } else if (v.riskAssetDeficit) {
             _mintCrypto5(v.usdcBal, tokenInPath, tokenInFees, msg.value);
-            batch.tokenDelta[cr5Tok] = 0;
+            batch.tokenDelta[riskAssetTok] = 0;
         } else {
             require(msg.value == 0, "unexpected ETH fee");
             usdc.safeTransfer(address(factoryStorage.vault()), v.usdcBal);

@@ -10,7 +10,7 @@ import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
-import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
 import {FeeVault} from "../vault/FeeVault.sol";
 import {IndexFactoryBalancer} from "./IndexFactoryBalancer.sol";
 
@@ -29,7 +29,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     IERC20 public usdc;
 
     address public bond;
-    address public crypto5FactoryAddress;
+    address public riskAssetFactoryAddress;
     address public feeReceiver;
     uint8 public feeRate;
     uint256 public issuanceRoundId;
@@ -54,7 +54,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => bool) public issuanceRoundActive;
     mapping(uint256 => bool) public redemptionRoundActive;
     mapping(uint256 => uint256) public roundIdToBondAmount;
-    mapping(uint256 => uint256) public roundIdToCrypto5Amount;
+    mapping(uint256 => uint256) public roundIdToRiskAssetAmount;
     mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
     mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
     mapping(uint256 => uint256) public issuanceFeeByNonce;
@@ -86,7 +86,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         address _stagingCustodyAccount,
         address _vault,
         address _nexBot,
-        address _crypto5FactoryAddress,
+        address _riskAssetFactoryAddress,
         address _usdc,
         address _bond,
         address _feeVault,
@@ -99,7 +99,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         require(_stagingCustodyAccount != address(0), "Invalid _stagingCustodyAccount address");
         require(_vault != address(0), "Invalid _vault address");
         require(_nexBot != address(0), "Invalid _nexBot address");
-        require(_crypto5FactoryAddress != address(0), "Invalid _crypto5FactoryAddress address");
+        require(_riskAssetFactoryAddress != address(0), "Invalid _riskAssetFactoryAddress address");
         require(_usdc != address(0), "Invalid _usdc address");
         require(_bond != address(0), "Invalid _bond address");
 
@@ -115,7 +115,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         factoryBalancer = IndexFactoryBalancer(_indexFactoryBalancer);
 
-        crypto5FactoryAddress = _crypto5FactoryAddress;
+        riskAssetFactoryAddress = _riskAssetFactoryAddress;
         nexBot = _nexBot;
         // isMainnet = _isMainnet;
         issuanceRoundId = 1;
@@ -427,7 +427,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return !redemptionRoundActive[p] && redemptionIsCompleted[p];
     }
 
-    function getPortfolioValue(uint256 bondPrice, uint256 crypto5Price) public view returns (uint256 totalValue) {
+    function getPortfolioValue(uint256 bondPrice, uint256 riskAssetPrice) public view returns (uint256 totalValue) {
         uint256 tokens = functionsOracle.totalCurrentList();
 
         for (uint256 i; i < tokens; ++i) {
@@ -440,7 +440,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
             if (assetType == 0) {
                 totalValue += (balance * bondPrice) / 1e18;
             } else if (assetType == 1) {
-                totalValue += (balance * crypto5Price) / 1e18;
+                totalValue += (balance * riskAssetPrice) / 1e18;
             }
         }
 
@@ -465,13 +465,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         uint24[] memory _tokenInFees,
         uint256 _inputAmount
     ) public view returns (uint256) {
-        uint256 ethFee =
-            ICrypto5Factory(crypto5FactoryAddress).getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
+        uint256 ethFee = IRiskAssetFactory(riskAssetFactoryAddress).getIssuanceFee(
+            _tokenIn, _tokenInPath, _tokenInFees, _inputAmount
+        );
         return ethFee;
     }
 
     function getRedemptionFee(uint256 _amount) public view returns (uint256) {
-        uint256 ethFee = ICrypto5Factory(crypto5FactoryAddress).getRedemptionFee(_amount);
+        uint256 ethFee = IRiskAssetFactory(riskAssetFactoryAddress).getRedemptionFee(_amount);
         return ethFee;
     }
 

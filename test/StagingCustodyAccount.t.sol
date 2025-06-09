@@ -254,7 +254,7 @@ contract StagingCustodyAccountTest is Test {
         vm.startPrank(alice);
 
         vm.expectRevert("Caller is not the owner or operator");
-        sca.issuanceCrypto5(1, new address[](0), new uint24[](0));
+        sca.issuanceRiskAsset(1, new address[](0), new uint24[](0));
 
         vm.stopPrank();
     }
@@ -304,7 +304,7 @@ contract StagingCustodyAccountTest is Test {
         vm.startPrank(alice);
 
         vm.expectRevert("Caller is not the owner or operator");
-        sca.redemptionCrypto5(1, address(0), new address[](0), new uint24[](0));
+        sca.redemptionRiskAsset(1, address(0), new address[](0), new uint24[](0));
 
         vm.stopPrank();
     }
@@ -381,7 +381,7 @@ contract StagingCustodyAccountTest is Test {
     function test_redemptionCrypto5_branch_153_True() public {
         vm.startPrank(nexBot);
 
-        try sca.redemptionCrypto5(1, address(0), new address[](0), new uint24[](0)) {} catch {}
+        try sca.redemptionRiskAsset(1, address(0), new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
     }
 

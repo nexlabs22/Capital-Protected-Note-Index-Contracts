@@ -671,7 +671,7 @@ contract IndexFactoryStorageTest is Test {
             StagingCustodyAccount(address(new ERC1967Proxy(address(new StagingCustodyAccount()), "")));
         MockUSDC usdc = new MockUSDC();
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid _crypto5FactoryAddress address");
+        vm.expectRevert("Invalid _riskAssetFactoryAddress address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(

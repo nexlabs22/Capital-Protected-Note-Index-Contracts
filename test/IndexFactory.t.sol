@@ -15,7 +15,7 @@ import {LinkToken} from "./helpers/LinkToken.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {Token} from "./helpers/Token.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
-import {ICrypto5Factory} from "../src/interfaces/ICrypto5Factory.sol";
+import {IRiskAssetFactory} from "../src/interfaces/IRiskAssetFactory.sol";
 import {FeeVault} from "../src/vault/FeeVault.sol";
 import {OlympixUnitTest} from "./OlympixUnitTest.sol";
 
@@ -39,7 +39,7 @@ contract MockIDXc5 is ERC20("Crypto-5", "IDXc5") {
     }
 }
 
-contract DummyCrypto5Factory is ICrypto5Factory {
+contract DummyCrypto5Factory is IRiskAssetFactory {
     MockIDXc5 public immutable idxc5;
 
     constructor(address _idxc5) {

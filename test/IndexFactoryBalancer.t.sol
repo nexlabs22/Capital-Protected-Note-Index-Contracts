@@ -11,9 +11,8 @@ import {Vault} from "../src/vault/Vault.sol";
 import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {IndexToken} from "../src/token/IndexToken.sol";
-import "../src/vault/FeeVault.sol";
+import {FeeVault} from "../src/vault/FeeVault.sol";
 import {IndexFactory} from "../src/factory/IndexFactory.sol";
-
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 import {MockBond, MockIDXc5, DummyCrypto5Factory} from "./IndexFactory.t.sol";

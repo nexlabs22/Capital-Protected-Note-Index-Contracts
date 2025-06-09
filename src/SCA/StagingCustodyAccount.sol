@@ -7,13 +7,13 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
 import {IndexFactory} from "../factory/IndexFactory.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
-import {Vault} from "../vault/Vault.sol";
 import {FeeCalculation} from "../libraries/FeeCalculation.sol";
+import {Vault} from "../vault/Vault.sol";
 
 error ZeroAmount();
 error ZeroAddress();
@@ -24,7 +24,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     IndexFactoryStorage factoryStorage;
 
-    address public crypto5FactoryAddress;
+    address public riskAssetFactoryAddress;
     address public indexFactoryAddress;
     address public nexBot;
     address public bond;
@@ -39,8 +39,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 timestamp
     );
     event Refunded(address indexed to, uint256 indexed amount, uint256 timestamp);
-    event IssuanceCrypto5(uint256 indexed amount, uint256 timestamp);
-    event RedemptionCrpyto5(uint256 indexed amount, uint256 timestamp);
+    event IssuanceRiskAsset(uint256 indexed amount, uint256 timestamp);
+    event RedemptionRiskAsset(uint256 indexed amount, uint256 timestamp);
     event RedemptionSettled(uint256 indexed roundId, uint256 indexed amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
@@ -64,7 +64,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factoryStorage = IndexFactoryStorage(_indexFactroyStorageAddress);
 
         nexBot = factoryStorage.nexBot();
-        crypto5FactoryAddress = factoryStorage.crypto5FactoryAddress();
+        riskAssetFactoryAddress = factoryStorage.riskAssetFactoryAddress();
         bond = factoryStorage.bond();
     }
 
@@ -99,19 +99,19 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit Refunded(to, amount, block.timestamp);
     }
 
-    function issuanceCrypto5(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
+    function issuanceRiskAsset(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
         public
         payable
         onlyOwnerOrOperator
     {
         require(msg.value > 0, "SCA: no ETH attached");
-        ICrypto5Factory(crypto5FactoryAddress).issuanceIndexTokens{value: msg.value}(
+        IRiskAssetFactory(riskAssetFactoryAddress).issuanceIndexTokens{value: msg.value}(
             address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
-        emit IssuanceCrypto5(usdcAmount, block.timestamp);
+        emit IssuanceRiskAsset(usdcAmount, block.timestamp);
     }
 
-    function redemptionCrypto5(
+    function redemptionRiskAsset(
         uint256 amountIn,
         address _tokenOut,
         address[] memory _tokenOutPath,
@@ -119,10 +119,10 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     ) public payable onlyOwnerOrOperator {
         require(msg.value > 0, "SCA: no ETH");
 
-        ICrypto5Factory(crypto5FactoryAddress).redemption{value: msg.value}(
+        IRiskAssetFactory(riskAssetFactoryAddress).redemption{value: msg.value}(
             amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
         );
-        emit RedemptionCrpyto5(amountIn, block.timestamp);
+        emit RedemptionRiskAsset(amountIn, block.timestamp);
     }
 
     function requestIssuance(uint256 roundId, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
@@ -145,7 +145,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(balance > 0, "USDC Balance is Zero!");
 
         uint256 usdcAmountForBond;
-        uint256 usdcAmountForCrypto5;
+        uint256 usdcAmountForRiskAsset;
 
         for (uint256 i; i < factoryStorage.functionsOracle().totalCurrentList(); ++i) {
             address token = factoryStorage.functionsOracle().currentList(i);
@@ -153,25 +153,21 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             uint256 slice = (balance * share) / 100e18;
 
             if (factoryStorage.functionsOracle().tokenAssetType(token) == 1) {
-                usdcAmountForCrypto5 += slice;
+                usdcAmountForRiskAsset += slice;
             } else {
                 usdcAmountForBond += slice;
             }
         }
 
-        uint256 dust = balance - usdcAmountForCrypto5 - usdcAmountForBond;
+        uint256 dust = balance - usdcAmountForRiskAsset - usdcAmountForBond;
         if (dust > 0) usdcAmountForBond += dust;
 
-        if (usdcAmountForCrypto5 > 0) {
-            // uint256 issuanceFee = factoryStorage.getIssuanceFee(
-            //     address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForCrypto5
-            // );
-            // issuanceCrypto5{value: issuanceFee}(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
+        if (usdcAmountForRiskAsset > 0) {
             uint256 fee = factoryStorage.getIssuanceFee(
-                address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForCrypto5
+                address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForRiskAsset
             );
             require(msg.value == fee, "SCA: wrong ETH fee");
-            issuanceCrypto5(usdcAmountForCrypto5, _tokenInPath, _tokenInFees);
+            issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
         } else {
             require(msg.value == 0, "SCA: unexpected ETH");
         }
@@ -184,7 +180,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
     }
 
-    function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 crypto5Price) external onlyNexBot {
+    function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 riskAssetPrice) external onlyNexBot {
         require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
         require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
         uint256 prev = roundId - 1;
@@ -195,7 +191,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(!factoryStorage.issuanceRoundActive(roundId), "Round is active");
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
 
-        uint256 oldValue = factoryStorage.getPortfolioValue(bondPrice, crypto5Price);
+        uint256 oldValue = factoryStorage.getPortfolioValue(bondPrice, riskAssetPrice);
 
         for (uint256 i; i < factoryStorage.functionsOracle().totalCurrentList(); i++) {
             address tokenAddress = factoryStorage.functionsOracle().currentList(i);
@@ -203,7 +199,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             IERC20(tokenAddress).safeTransfer(address(factoryStorage.vault()), balance);
         }
 
-        uint256 newValue = factoryStorage.getPortfolioValue(bondPrice, crypto5Price);
+        uint256 newValue = factoryStorage.getPortfolioValue(bondPrice, riskAssetPrice);
 
         uint256 mintAmount = factoryStorage.calculateMintAmount(oldValue, newValue);
         if (mintAmount > 0) factoryStorage.indexToken().mint(address(this), mintAmount);
@@ -238,7 +234,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit TokensDistributed(roundId, mintAmount, distributed, total, block.timestamp);
     }
 
-    function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromCr5) external onlyNexBot {
+    function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromRiskAsset) external onlyNexBot {
         require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
         uint256 prev = roundId - 1;
         if (roundId > 1) {
@@ -256,7 +252,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             factoryStorage.usdc().safeTransferFrom(msg.sender, address(this), usdcFromBond);
         }
 
-        uint256 totalUSDC = usdcFromBond + usdcFromCr5;
+        uint256 totalUSDC = usdcFromBond + usdcFromRiskAsset;
         require(totalUSDC > 0, "zero USDC received");
         uint256 feeAmount = FeeCalculation.calculateFee(totalUSDC, factoryStorage.feeRate());
         uint256 usdcForDistribute = totalUSDC - feeAmount;
@@ -338,8 +334,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (c5Amount > 0) {
             uint256 fee = factoryStorage.getRedemptionFee(c5Amount);
             require(msg.value == fee, "SCA: wrong ETH fee");
-            redemptionCrypto5(c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
-            // redemptionCrypto5{value: msg.value}(c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
+            redemptionRiskAsset(c5Amount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
         }
 
         factoryStorage.indexToken().burn(address(this), totalIdxThisRound);

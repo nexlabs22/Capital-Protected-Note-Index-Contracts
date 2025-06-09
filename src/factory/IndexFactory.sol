@@ -13,7 +13,7 @@ import {IndexFactoryStorage} from "../factory/IndexFactoryStorage.sol";
 import {FunctionsOracle} from "../factory/FunctionsOracle.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {FeeCalculation} from "../libraries/FeeCalculation.sol";
-import {ICrypto5Factory} from "../interfaces/ICrypto5Factory.sol";
+import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
 import {FeeVault} from "../vault/FeeVault.sol";
 
 error ZeroAmount();

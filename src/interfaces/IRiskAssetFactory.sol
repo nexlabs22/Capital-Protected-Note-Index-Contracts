@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-interface ICrypto5Factory {
+interface IRiskAssetFactory {
     function issuanceIndexTokens(
         address _tokenIn,
         address[] memory _tokenInPath,
