@@ -58,6 +58,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
     mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
     mapping(uint256 => uint256) public issuanceFeeByNonce;
+    mapping(address => uint256) public tokenPendingRebalanceAmount;
+    mapping(address => mapping(uint256 => uint256)) public tokenPendingRebalanceAmountByNonce;
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
@@ -239,6 +241,40 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function setRedemptionRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
         redemptionRequesterByNonce[nonce] = requester;
+    }
+
+    function increaseTokenPendingRebalanceAmount(address _token, uint256 _nonce, uint256 _amount)
+        external
+        onlyFactory
+    {
+        require(_token != address(0), "invalid token address");
+        require(_amount > 0, "Invalid amount");
+        tokenPendingRebalanceAmount[_token] += _amount;
+        tokenPendingRebalanceAmountByNonce[_token][_nonce] += _amount;
+    }
+
+    function decreaseTokenPendingRebalanceAmount(address _token, uint256 _nonce, uint256 _amount)
+        external
+        onlyFactory
+    {
+        require(_token != address(0), "invalid token address");
+        require(_amount > 0, "Invalid amount");
+        require(tokenPendingRebalanceAmount[_token] >= _amount, "Insufficient pending rebalance amount");
+        tokenPendingRebalanceAmount[_token] -= _amount;
+        tokenPendingRebalanceAmountByNonce[_token][_nonce] -= _amount;
+    }
+
+    function resetTokenPendingRebalanceAmount(address _token, uint256 _nonce) public onlyOwnerOrOperator {
+        require(_token != address(0), "invalid token address");
+        tokenPendingRebalanceAmount[_token] = 0;
+        tokenPendingRebalanceAmountByNonce[_token][_nonce] = 0;
+    }
+
+    function resetAllTokenPendingRebalanceAmount(uint256 _nonce) public onlyOwnerOrOperator {
+        for (uint256 i; i < functionsOracle.totalCurrentList(); i++) {
+            address tokenAddress = functionsOracle.currentList(i);
+            resetTokenPendingRebalanceAmount(tokenAddress, _nonce);
+        }
     }
 
     function undoIssuance(address account, uint256 amount) external onlyFactory {
