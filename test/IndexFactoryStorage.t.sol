@@ -22,7 +22,7 @@ contract MockUSDC is ERC20("USD Coin", "USDC") {
     }
 }
 
-contract IndexFactoryStorageTest is Test {
+contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
     address factory = vm.addr(1);
     address vault = vm.addr(2);
     address nexBot = vm.addr(3);
@@ -32,6 +32,7 @@ contract IndexFactoryStorageTest is Test {
     address owner = vm.addr(11);
     address bond = vm.addr(12);
     address feeVault = vm.addr(13);
+    address cr5 = vm.addr(14);
 
     IndexFactoryStorage store;
     IndexToken idx;
@@ -892,5 +893,75 @@ contract IndexFactoryStorageTest is Test {
 
         assertFalse(allSettled, "Should not be all settled");
         assertEq(roundId, 1, "Should return the first unsettled roundId");
+    }
+
+    function test_increaseTokenPendingRebalanceAmount_success() public {
+        // factory is an authorised caller (`onlyFactory`)
+        uint256 nonce = 42;
+        uint256 delta = 7 ether;
+
+        vm.prank(factory);
+        store.increaseTokenPendingRebalanceAmount(address(bond), nonce, delta);
+
+        assertEq(store.tokenPendingRebalanceAmount(address(bond)), delta, "global counter");
+        assertEq(store.tokenPendingRebalanceAmountByNonce(address(bond), nonce), delta, "per-nonce counter");
+    }
+
+    function test_increaseTokenPendingRebalanceAmount_revertsOnBadInput() public {
+        uint256 nonce = 1;
+        vm.startPrank(factory);
+
+        vm.expectRevert("invalid token address");
+        store.increaseTokenPendingRebalanceAmount(address(0), nonce, 1);
+
+        vm.expectRevert("Invalid amount");
+        store.increaseTokenPendingRebalanceAmount(address(bond), nonce, 0);
+
+        // unauthorised caller
+        vm.stopPrank();
+        vm.expectRevert("Caller is not a factory contract");
+        store.increaseTokenPendingRebalanceAmount(address(bond), nonce, 1);
+    }
+
+    function test_decreaseTokenPendingRebalanceAmount_success() public {
+        uint256 nonce = 7;
+        uint256 add = 5 ether;
+        uint256 sub = 2 ether;
+
+        vm.prank(factory);
+        store.increaseTokenPendingRebalanceAmount(address(cr5), nonce, add);
+
+        vm.prank(factory);
+        store.decreaseTokenPendingRebalanceAmount(address(cr5), nonce, sub);
+
+        assertEq(store.tokenPendingRebalanceAmount(address(cr5)), add - sub, "global counter decreased");
+        assertEq(
+            store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), add - sub, "per-nonce counter decreased"
+        );
+    }
+
+    function test_resetTokenPendingRebalanceAmount_and_resetAll() public {
+        uint256 nonce = 11;
+        uint256 amt = 3 ether;
+
+        // seed some pending amounts (factory authorised)
+        vm.prank(factory);
+        store.increaseTokenPendingRebalanceAmount(address(bond), nonce, amt);
+        vm.prank(factory);
+        store.increaseTokenPendingRebalanceAmount(address(cr5), nonce, amt);
+
+        // owner acts as Operator -> can call reset helpers
+        vm.prank(store.owner());
+        store.resetTokenPendingRebalanceAmount(address(bond), nonce);
+
+        assertEq(store.tokenPendingRebalanceAmount(address(bond)), 0, "bond reset");
+        assertEq(store.tokenPendingRebalanceAmountByNonce(address(bond), nonce), 0, "bond reset-nonce");
+
+        // reset *all* remaining (will clear CR-5 entry)
+        vm.prank(store.owner());
+        store.resetAllTokenPendingRebalanceAmount(nonce);
+
+        assertEq(store.tokenPendingRebalanceAmount(address(cr5)), 0, "cr5 reset by resetAll");
+        assertEq(store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), 0, "cr5 reset-nonce");
     }
 }
