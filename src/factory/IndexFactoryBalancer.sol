@@ -114,6 +114,9 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         returns (uint256 qty18)
     {
         qty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
+
+        factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, qty18);
+
         RebalanceBatch storage b = _rebalanceBatches[nonce];
         b.tokenDelta[bondToken] = qty18;
         b.totalUsdcObtained += usdCut18;
@@ -125,6 +128,9 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         returns (uint256 qty18)
     {
         qty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
+
+        factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, qty18);
+
         RebalanceBatch storage b = _rebalanceBatches[nonce];
         b.tokenDelta[riskAssetToken] = qty18;
         b.totalUsdcObtained += usdCut18;
@@ -252,6 +258,8 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
             uint256 bal = IERC20(tok).balanceOf(address(this));
             if (bal > 0) IERC20(tok).safeTransfer(address(vault), bal);
         }
+
+        factoryStorage.resetAllTokenPendingRebalanceAmount(batchId);
 
         functionsOracle.updateCurrentList();
 

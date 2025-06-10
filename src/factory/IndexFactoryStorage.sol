@@ -66,7 +66,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     modifier onlyFactory() {
         require(
-            msg.sender == address(indexFactory) || msg.sender == nexBot || msg.sender == address(sca),
+            msg.sender == address(indexFactory) || msg.sender == nexBot || msg.sender == address(sca) || msg.sender == address(factoryBalancer),
             "Caller is not a factory contract"
         );
         _;
@@ -468,7 +468,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         for (uint256 i; i < tokens; ++i) {
             address token = functionsOracle.currentList(i);
-            uint256 balance = IERC20(token).balanceOf(address(vault));
+            // uint256 balance = IERC20(token).balanceOf(address(vault));
+            uint256 balance = IERC20(token).balanceOf(address(vault)) + tokenPendingRebalanceAmount[token];
             if (balance == 0) continue;
 
             uint8 assetType = functionsOracle.tokenAssetType(token);
@@ -510,6 +511,16 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function getRedemptionFee(uint256 _amount) public view returns (uint256) {
         uint256 ethFee = IRiskAssetFactory(riskAssetFactoryAddress).getRedemptionFee(_amount);
         return ethFee;
+    }
+
+    function getIndexTokenPrice(uint256 bondPrice, uint256 riskAssetPrice) public view returns (uint256) {
+        uint256 totalSupply = indexToken.totalSupply();
+        // uint256 portfolioValue = getPortfolioValue(bondPrice, riskAssetPrice);
+        uint256 portfolioValue = getPortfolioValue(bondPrice, riskAssetPrice);
+        if (totalSupply == 0) {
+            return 0;
+        }
+        return portfolioValue * 1e18 / totalSupply;
     }
 
     uint256[50] private __gap;
