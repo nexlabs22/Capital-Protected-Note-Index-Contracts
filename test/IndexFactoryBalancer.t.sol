@@ -16,6 +16,7 @@ import {IndexFactory} from "../src/factory/IndexFactory.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 import {MockBond, MockIDXc5, DummyCrypto5Factory} from "./IndexFactory.t.sol";
+import {IRiskAssetFactory} from "../src/interfaces/IRiskAssetFactory.sol";
 
 contract TestOracle is FunctionsOracle {
     function seed(uint8[] calldata t, address[] calldata a, uint256[] calldata s) external {
@@ -118,6 +119,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         vm.stopPrank();
 
         vm.deal(address(balancer), 1 ether);
+        vm.deal(address(nexBot), 1 ether);
 
         {
             uint8[] memory ty = new uint8[](2);
@@ -132,8 +134,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
             wt[1] = 20e16; // 20%
             oracle.seed(ty, tk, wt);
 
-            oracle.setCurrent(address(bond), 90e16);
-            oracle.setCurrent(address(cr5), 30e16);
+            oracle.setCurrent(address(bond), 80e16);
+            // oracle.setCurrent(address(cr5), 30e16);
+            oracle.setCurrent(address(cr5), 20e16);
         }
 
         // bond.mint(address(vault), 100 * ONE_18);
@@ -151,7 +154,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         uint256 cr5Before = cr5.balanceOf(address(vault));
 
         vm.recordLogs();
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
         assertEq(nonce, 1);
 
         assertLt(bond.balanceOf(address(vault)), bondBefore, "bond not sold");
@@ -243,8 +246,11 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        vm.startPrank(nexBot);
+        balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
         bool result = balancer.checkFirstRebalanceOrdersStatus(1);
+        vm.stopPrank();
+
         assertTrue(result, "Should return true for valid rebalance nonce");
     }
 
@@ -259,8 +265,11 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        vm.startPrank(nexBot);
+        balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
         bool result = balancer.checkSecondRebalanceOrdersStatus(1);
+        vm.stopPrank();
+
         assertTrue(result, "Should return true for valid rebalance nonce");
     }
 
@@ -293,7 +302,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
 
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
     }
 
     function test_initialize_branch_factoryStorage_zero_address() public {
@@ -311,7 +320,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
 
         usdc.mint(address(balancer), 100 * ONE_USDC);
         oracle.setCurrent(address(bond), 70e16);
@@ -326,11 +335,11 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
 
         oracle.setCurrent(address(bond), 70e16);
         vm.expectRevert(bytes("no USDC to deploy"));
-        balancer.secondRebalanceAction(nonce, new address[](0), new uint24[](0));
+        balancer.secondRebalanceAction{value: 10}(nonce, new address[](0), new uint24[](0));
     }
 
     function test_secondRebalanceAction_branch_250_else() public {
@@ -338,7 +347,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         cr5.mint(address(vault), 50 * ONE_18);
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
         usdc.mint(address(balancer), 100 * ONE_USDC);
         oracle.setCurrent(address(bond), 80e16);
         oracle.setCurrent(address(cr5), 20e16);
@@ -356,7 +365,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         bond.mint(address(vault), 100 * ONE_18);
         cr5.mint(address(vault), 50 * ONE_18);
 
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
 
         uint256 proceeds = 200 * ONE_USDC;
         usdc.mint(address(balancer), proceeds);
@@ -395,7 +404,7 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         oracle.setCurrent(address(bond), 90e16); // 90 %
         oracle.setCurrent(address(idx), 10e16); // 10 %
 
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
 
         uint256 proceeds = 150 * ONE_USDC;
         usdc.mint(address(balancer), proceeds);
@@ -413,6 +422,8 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_completeRebalanceActions_transfersAndUnpauses() public {
+        oracle.setCurrent(address(cr5), 25e16);
+
         uint256 pBond = 2 * ONE_18;
         uint256 pCr5 = 1 * ONE_18;
 
@@ -422,7 +433,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         oracle.setCurrent(address(bond), 75e16); // 75 %
         oracle.setCurrent(address(cr5), 25e16); // 25 %
 
-        uint256 nonce = balancer.firstRebalanceAction(pBond, pCr5, new address[](0), new uint24[](0));
+        vm.startPrank(nexBot);
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
+        vm.stopPrank();
 
         uint256 nav = 250 * ONE_18;
         uint256 sold = _calcSoldCr5(nav, 5e16, /*5 %*/ pCr5);
@@ -435,7 +448,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         usdc.mint(address(balancer), proceeds);
         uint256 nexBotPre = usdc.balanceOf(nexBot);
 
+        vm.startPrank(nexBot);
         balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+        vm.stopPrank();
 
         assertEq(usdc.balanceOf(nexBot), nexBotPre + proceeds, "nexBot paid");
 
@@ -445,7 +460,9 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         uint256 bondPre = bond.balanceOf(address(vault));
         uint256 cr5Pre = cr5.balanceOf(address(vault));
 
+        vm.startPrank(nexBot);
         balancer.completeRebalanceActions(nonce);
+        vm.stopPrank();
 
         assertEq(bond.balanceOf(address(balancer)), 0, "balancer bond 0");
         assertEq(cr5.balanceOf(address(balancer)), 0, "balancer cr-5 0");
