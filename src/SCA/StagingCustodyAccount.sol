@@ -31,17 +31,19 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
     event Rescue(address indexed token, address indexed to, uint256 amount, uint256 indexed timestamp);
     event WithdrawnForPurchase(uint256 indexed roundId, uint256 indexed amount, uint256 indexed timestamp);
-    event TokensDistributed(
+    event Refunded(address indexed to, uint256 indexed amount, uint256 timestamp);
+    event IssuanceRiskAsset(uint256 indexed amount, uint256 timestamp);
+    event RedemptionRiskAsset(uint256 indexed amount, uint256 timestamp);
+    event RedemptionSettled(uint256 indexed roundId, uint256 indexed amount, uint256 timestamp);
+    event IssuanceSettled(
         uint256 indexed roundId,
         uint256 indexed indexTokenAmount,
         uint256 indexTokenDistributed,
         uint256 indexed usdcAmount,
         uint256 timestamp
     );
-    event Refunded(address indexed to, uint256 indexed amount, uint256 timestamp);
-    event IssuanceRiskAsset(uint256 indexed amount, uint256 timestamp);
-    event RedemptionRiskAsset(uint256 indexed amount, uint256 timestamp);
-    event RedemptionSettled(uint256 indexed roundId, uint256 indexed amount, uint256 timestamp);
+    event RedemptionRequested(uint256 indexed totalIdx, uint256 timestamp);
+    event IssuanceRequested(uint256 indexed usdcForBond, uint256 indexed usdcForRiskAsset, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
@@ -178,6 +180,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.indexFactory().increaseCurrentRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.issuanceRoundId(), true);
+
+        emit IssuanceRequested(usdcAmountForBond, usdcAmountForRiskAsset, block.timestamp);
     }
 
     function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 riskAssetPrice) external onlyNexBot {
@@ -218,12 +222,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             }
         }
 
-        // 1540
-        // 100000
-
-        // 1000 // index token
-        // 100000 // usdc amount
-
         uint256 remainder = mintAmount - distributed;
         if (remainder > 0) {
             factoryStorage.indexToken().transfer(factoryStorage.feeReceiver(), remainder);
@@ -231,7 +229,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.settleIssuance(roundId);
 
-        emit TokensDistributed(roundId, mintAmount, distributed, total, block.timestamp);
+        emit IssuanceSettled(roundId, mintAmount, distributed, total, block.timestamp);
     }
 
     function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromRiskAsset) external onlyNexBot {
@@ -302,14 +300,12 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         if (!factoryStorage.redemptionRoundActive(roundId)) {
             revert("batch not started");
         }
-        // if (factoryStorage.redemptionRoundActive(roundId)) revert("batch already started");
 
         factoryStorage.setRedemptionRoundActive(roundId, false);
 
         uint256 supplyBefore = factoryStorage.indexToken().totalSupply();
         uint256 pct1e18 = totalIdxThisRound * 1e18 / supplyBefore;
 
-        // indexToken.burn(address(this), totalIdxThisRound);
         require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
 
         uint256 nComps = factoryStorage.functionsOracle().totalCurrentList();
@@ -341,6 +337,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.increaseRedemptionRoundId();
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
+
+        emit RedemptionRequested(totalIdxThisRound, block.timestamp);
     }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {

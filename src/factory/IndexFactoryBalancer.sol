@@ -3,10 +3,10 @@ pragma solidity 0.8.25;
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import {IndexFactoryStorage} from "./IndexFactoryStorage.sol";
 import {FunctionsOracle} from "./FunctionsOracle.sol";
@@ -14,6 +14,7 @@ import {IndexFactory} from "./IndexFactory.sol";
 import {IndexToken} from "../token/IndexToken.sol";
 import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
+import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
 
 contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
@@ -56,13 +57,20 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     uint256 indexed nonce, address[] tokensSold, uint256[] amountsSold, uint256 usdcExpected, uint256 time);
     event SecondRebalanceAction(uint256 nonce, uint256 time);
     event CompleteRebalanceActions(uint256 nonce, uint256 time);
+    event IssuanceRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
+    event RedemptionRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
             msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender)
-                || msg.sender == address(factoryStorage.factoryBalancer()),
+                || msg.sender == address(factoryStorage.factoryBalancer()) || msg.sender == factoryStorage.nexBot(),
             "Caller is not the owner or operator"
         );
+        _;
+    }
+
+    modifier onlyNexBot() {
+        require(msg.sender == factoryStorage.nexBot(), "Caller is not the NEX bot");
         _;
     }
 
@@ -120,7 +128,15 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         RebalanceBatch storage b = _rebalanceBatches[nonce];
         b.tokenDelta[bondToken] = qty18;
         b.totalUsdcObtained += usdCut18;
-        ctx.vault.withdrawFunds(bondToken, address(this), qty18);
+        uint256 amount = ctx.vault.withdrawFunds(bondToken, address(this), qty18);
+        // ctx.vault.withdrawFunds(bondToken, factoryStorage.nexBot(), amount);
+        withdrawBondForNexBot(amount);
+    }
+
+    function withdrawBondForNexBot(uint256 amount) public onlyOwnerOrOperator {
+        uint256 bondBalance = IERC20(factoryStorage.bond()).balanceOf(address(this));
+        require(bondBalance >= amount, "Invalid amount");
+        IERC20(factoryStorage.bond()).safeTransfer(address(factoryStorage.nexBot()), amount);
     }
 
     function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
@@ -135,10 +151,13 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         b.tokenDelta[riskAssetToken] = qty18;
         b.totalUsdcObtained += usdCut18;
 
-        ctx.vault.withdrawFunds(riskAssetToken, address(ctx.sca), qty18);
+        // ctx.vault.withdrawFunds(riskAssetToken, address(ctx.sca), qty18);
+        ctx.vault.withdrawFunds(riskAssetToken, address(this), qty18);
 
         uint256 ethFee = factoryStorage.getRedemptionFee(qty18);
-        ctx.sca.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+        // ctx.sca.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+        redemptionRiskAsset(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+        // redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
     }
 
     function firstRebalanceAction(
@@ -146,7 +165,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint256 cryptoPrice18,
         address[] calldata tokenInPath,
         uint24[] calldata tokenInFees
-    ) external nonReentrant whenNotPaused onlyOwnerOrOperator returns (uint256 nonce) {
+    ) external payable nonReentrant whenNotPaused onlyOwnerOrOperator returns (uint256 nonce) {
         pauseIndexFactory();
 
         Ctx memory ctx = Ctx({
@@ -266,6 +285,32 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         unpauseIndexFactory();
 
         emit CompleteRebalanceActions(batchId, block.timestamp);
+    }
+
+    function issuanceRiskAsset(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
+        public
+        payable
+        onlyOwnerOrOperator
+    {
+        require(msg.value > 0, "SCA: no ETH attached");
+        IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).issuanceIndexTokens{value: msg.value}(
+            address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
+        );
+        emit IssuanceRiskAssetForRebalance(usdcAmount, block.timestamp);
+    }
+
+    function redemptionRiskAsset(
+        uint256 amountIn,
+        address _tokenOut,
+        address[] memory _tokenOutPath,
+        uint24[] memory _tokenOutFees
+    ) public payable onlyOwnerOrOperator {
+        require(msg.value > 0, "SCA: no ETH");
+
+        IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).redemption{value: msg.value}(
+            amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
+        );
+        emit RedemptionRiskAssetForRebalance(amountIn, block.timestamp);
     }
 
     function checkFirstRebalanceOrdersStatus(uint256 _rebalanceNonce) public view returns (bool) {

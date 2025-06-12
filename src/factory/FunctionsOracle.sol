@@ -8,8 +8,6 @@ import {FunctionsRequest} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/l
 import {ConfirmedOwner} from "../chainlink/ConfirmedOwner.sol";
 import {FunctionsClient} from "../chainlink/FunctionsClient.sol";
 
-/// @title Index Token Factory Storage
-/// @notice Stores data and provides functions for managing index token issuance and redemption
 contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
     using FunctionsRequest for FunctionsRequest.Request;
 
