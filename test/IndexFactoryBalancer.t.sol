@@ -490,59 +490,97 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     }
 
     function test_fullScenario_rebalanceEndToEnd() public {
-        /* ---------- portfolio before ---------- */
-        uint256 priceBond = 2 * ONE_18; // $2
-        uint256 priceCr5 = 1 * ONE_18; // $1
+        uint256 priceBond = 2 * ONE_18;
+        uint256 priceCr5 = 1 * ONE_18;
 
         bond.mint(address(vault), 100 * ONE_18);
-        cr5.mint(address(vault), 50 * ONE_18); // NAV = $250
+        cr5.mint(address(vault), 50 * ONE_18);
 
-        oracle.setCurrent(address(bond), 70e18); // 70 %
-        oracle.setCurrent(address(cr5), 30e18); // 30 %  (10 % over-weight)
+        oracle.setCurrent(address(bond), 70e18);
+        oracle.setCurrent(address(cr5), 30e18);
 
-        /* ---- phase-1: sell the overweight slice ---------------- */
-        uint256 qtyCr5 = 25 * ONE_18; // 10 % * $250 / $1
-        uint256 feeRedeem = store.getRedemptionFee(qtyCr5); // dummy factory → e.g. 10 wei
+        uint256 qtyCr5 = 25 * ONE_18;
+        uint256 feeRedeem = store.getRedemptionFee(qtyCr5);
 
         uint256 nonce =
             balancer.firstRebalanceAction{value: feeRedeem}(priceBond, priceCr5, new address[](0), new uint24[](0));
 
         assertEq(cr5.balanceOf(address(vault)), 25 * ONE_18, "25 CR-5 should be withdrawn");
 
-        /* ---- simulate market fill (USDC proceeds) --------------- */
         uint256 proceeds = 25 * ONE_USDC;
         usdc.mint(address(balancer), proceeds);
 
-        /* ---- phase-2: USDC goes where it should ----------------- */
-        oracle.setCurrent(address(bond), 75e18); // after sale, bond < target 80 %
+        oracle.setCurrent(address(bond), 75e18);
         oracle.setCurrent(address(cr5), 25e18);
 
         uint256 nexBotUSDCBefore = usdc.balanceOf(nexBot);
         balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
         assertEq(usdc.balanceOf(nexBot), nexBotUSDCBefore + proceeds, "USDC not forwarded to nexBot");
 
-        /* ---- maker delivers some bonds -------------------------- */
         uint256 deliveredBond = 10 * ONE_18;
         bond.mint(address(balancer), deliveredBond);
 
-        /* ---- phase-3: sweep leftovers & un-pause factory -------- */
         vm.prank(nexBot);
         balancer.completeRebalanceActions(nonce);
 
-        // Balancer inventory must be empty
         assertEq(bond.balanceOf(address(balancer)), 0, "balancer still holds bERNX");
         assertEq(cr5.balanceOf(address(balancer)), 0, "balancer still holds CR-5");
 
-        // Vault received the delivered bonds
-        // assertEq(bond.balanceOf(address(vault)), 25 * ONE_18 /*remaining*/ + deliveredBond, "vault did not get bonds");
         assertEq(bond.balanceOf(address(vault)), 100 * ONE_18 + deliveredBond, "vault did not get bonds");
 
-        // Factory back to running state
         assertTrue(!factory.paused(), "factory still paused");
     }
 
     function _calcSoldCr5(uint256 nav18, uint256 overweight1e18, uint256 price18) internal pure returns (uint256) {
         uint256 usdToSell18 = nav18 * overweight1e18 / 1e18;
         return usdToSell18 * 1e18 / price18;
+    }
+
+    function test_rebalanceNonceIncrements() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+
+        bond.mint(address(vault), 100 * ONE_18);
+
+        vm.prank(nexBot);
+        uint256 n1 = balancer.firstRebalanceAction{value: 0}(pBond, pCr5, new address[](0), new uint24[](0));
+        assertEq(n1, 1, "first nonce should be 1");
+
+        oracle.setCurrent(address(bond), 85e18);
+        vm.prank(nexBot);
+        uint256 n2 = balancer.firstRebalanceAction{value: 0}(pBond, pCr5, new address[](0), new uint24[](0));
+        assertEq(n2, 2, "second nonce should be 2");
+
+        assertEq(balancer.rebalanceNonce(), 2, "global nonce incorrect");
+    }
+
+    function test_firstRebalanceAction_onlyOwnerOrOperatorGuard() public {
+        uint256 pBond = 2 * ONE_18;
+        uint256 pCr5 = 1 * ONE_18;
+        bond.mint(address(vault), 10 * ONE_18);
+
+        address stranger = vm.addr(999);
+        vm.prank(stranger);
+        vm.expectRevert("Caller is not the owner or operator");
+        balancer.firstRebalanceAction{value: 0}(pBond, pCr5, new address[](0), new uint24[](0));
+    }
+
+    function test_withdrawBondForNexBot() public {
+        uint256 amount = 5 * ONE_18;
+        bond.mint(address(balancer), amount);
+
+        uint256 before = bond.balanceOf(nexBot);
+
+        vm.prank(balancer.owner());
+        balancer.withdrawBondForNexBot(amount);
+
+        assertEq(bond.balanceOf(address(balancer)), 0, "balancer should be empty");
+        assertEq(bond.balanceOf(nexBot), before + amount, "nexBot did not receive bond");
+    }
+
+    function test_redemptionFeeIsNonZero() public view {
+        uint256 qty = 1 * ONE_18; // 1 unit
+        uint256 fee = store.getRedemptionFee(qty);
+        assertGt(fee, 0, "expected a positive fee");
     }
 }

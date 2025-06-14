@@ -964,4 +964,29 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(store.tokenPendingRebalanceAmount(address(cr5)), 0, "cr5 reset by resetAll");
         assertEq(store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), 0, "cr5 reset-nonce");
     }
+
+    function test_decreaseTokenPendingRebalanceAmount_revertsOnBadInput() public {
+        uint256 nonce = 99;
+        address token = address(bond);
+        uint256 add = 5 ether;
+        uint256 sub = 10 ether;
+
+        vm.prank(factory);
+        store.increaseTokenPendingRebalanceAmount(token, nonce, add);
+
+        vm.prank(factory);
+        vm.expectRevert("invalid token address");
+        store.decreaseTokenPendingRebalanceAmount(address(0), nonce, 1);
+
+        vm.prank(factory);
+        vm.expectRevert("Invalid amount");
+        store.decreaseTokenPendingRebalanceAmount(token, nonce, 0);
+
+        vm.prank(factory);
+        vm.expectRevert("Insufficient pending rebalance amount");
+        store.decreaseTokenPendingRebalanceAmount(token, nonce, sub);
+
+        vm.expectRevert("Caller is not a factory contract");
+        store.decreaseTokenPendingRebalanceAmount(token, nonce, 1);
+    }
 }

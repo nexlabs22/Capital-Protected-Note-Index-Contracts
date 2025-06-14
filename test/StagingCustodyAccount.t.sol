@@ -43,7 +43,7 @@ contract TestFunctionsOracle is FunctionsOracle {
     }
 }
 
-contract StagingCustodyAccountTest is Test {
+contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     address admin = vm.addr(1);
     address bot = vm.addr(2);
     // address factory = vm.addr(3);
