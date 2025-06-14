@@ -15,7 +15,20 @@ contract DeployFeeVault is Script {
 
         address owner = vm.addr(deployerPrivateKey);
 
+        string memory targetChain = "sepolia";
+        // string memory targetChain = "arbitrum_mainnet";
+
+        address indexFactoryStorageProxy;
+
         vm.startBroadcast(deployerPrivateKey);
+
+        if (keccak256(bytes(targetChain)) == keccak256("sepolia")) {
+            indexFactoryStorageProxy = vm.envAddress("SEPOLIA_INDEX_FACTORY_STORAGE_PROXY_ADDRESS");
+        } else if (keccak256(bytes(targetChain)) == keccak256("arbitrum_mainnet")) {
+            indexFactoryStorageProxy = vm.envAddress("ARBITRUM_INDEX_FACTORY_STORAGE_PROXY_ADDRESS");
+        } else {
+            revert("Unsupported target chain");
+        }
 
         address proxy =
             Upgrades.deployTransparentProxy("FeeVault.sol", owner, abi.encodeCall(FeeVault.initialize, (address(0))));

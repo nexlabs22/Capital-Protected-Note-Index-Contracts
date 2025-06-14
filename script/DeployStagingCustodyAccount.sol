@@ -17,18 +17,23 @@ contract DeployStagingCustodyAccount is Script {
         string memory targetChain = "sepolia";
         // string memory targetChain = "arbitrum_mainnet";
 
+        address indexFactoryStorageProxy;
+
         address owner = vm.addr(deployerPrivateKey);
 
-        if (keccak256(bytes(targetChain)) == keccak256("sepolia")) {} else if (
-            keccak256(bytes(targetChain)) == keccak256("arbitrum_mainnet")
-        ) {} else {
+        if (keccak256(bytes(targetChain)) == keccak256("sepolia")) {
+            indexFactoryStorageProxy = vm.envAddress("SEPOLIA_INDEX_FACTORY_STORAGE_PROXY_ADDRESS");
+        } else if (keccak256(bytes(targetChain)) == keccak256("arbitrum_mainnet")) {
+            indexFactoryStorageProxy = vm.envAddress("ARBITRUM_INDEX_FACTORY_STORAGE_PROXY_ADDRESS");
+        } else {
             revert("Unsupported target chain");
         }
-
         vm.startBroadcast(deployerPrivateKey);
 
         address proxy = Upgrades.deployTransparentProxy(
-            "StagingCustodyAccount.sol", owner, abi.encodeCall(StagingCustodyAccount.initialize, (address(0)))
+            "StagingCustodyAccount.sol",
+            owner,
+            abi.encodeCall(StagingCustodyAccount.initialize, (indexFactoryStorageProxy))
         );
 
         StagingCustodyAccount stagingCustodyAccountImplementation = StagingCustodyAccount(proxy);
