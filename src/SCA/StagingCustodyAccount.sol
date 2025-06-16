@@ -164,7 +164,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
         // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
 
-        factoryStorage.setIssuanceRoundActive(roundId, false);
+        // factoryStorage.setIssuanceRoundActive(roundId, false);
         uint256 balance = factoryStorage.usdc().balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
@@ -201,10 +201,27 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             withdrawForPurchase(roundId, usdcAmountForBond);
         }
 
+        factoryStorage.setIssuanceRoundActive(roundId, false);
         factoryStorage.indexFactory().increaseCurrentRoundId();
         factoryStorage.setIssuanceRoundActive(factoryStorage.issuanceRoundId(), true);
 
         emit IssuanceRequested(usdcAmountForBond, usdcAmountForRiskAsset, block.timestamp);
+    }
+
+    function _distributeIssuance(uint256 roundId, uint256 mintAmt, uint256 totalUsdc)
+        internal
+        returns (uint256 distributed)
+    {
+        address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
+        for (uint256 i; i < users.length; ++i) {
+            address u = users[i];
+            uint256 userAmt = factoryStorage.issuanceAmountByRoundUser(roundId, u);
+            uint256 owed = (mintAmt * userAmt) / totalUsdc;
+            if (owed > 0) {
+                factoryStorage.indexToken().transfer(u, owed);
+                distributed += owed;
+            }
+        }
     }
 
     function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 riskAssetPrice) external onlyNexBot {
@@ -232,19 +249,21 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 mintAmount = factoryStorage.calculateMintAmount(oldValue, newValue);
         if (mintAmount > 0) factoryStorage.indexToken().mint(address(this), mintAmount);
 
-        address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
+        // address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
 
-        uint256 distributed;
-        for (uint256 i = 0; i < users.length; i++) {
-            address user = users[i];
-            uint256 owed = (mintAmount * factoryStorage.issuanceAmountByRoundUser(roundId, user)) / total;
-            if (owed > 0) {
-                factoryStorage.indexToken().transfer(user, owed);
-                distributed += owed;
-            }
-        }
+        // uint256 distributed;
+        // for (uint256 i = 0; i < users.length; i++) {
+        //     address user = users[i];
+        //     uint256 owed = (mintAmount * factoryStorage.issuanceAmountByRoundUser(roundId, user)) / total;
+        //     if (owed > 0) {
+        //         factoryStorage.indexToken().transfer(user, owed);
+        //         distributed += owed;
+        //     }
+        // }
+
+        uint256 distributed = _distributeIssuance(roundId, mintAmount, total);
 
         uint256 remainder = mintAmount - distributed;
         if (remainder > 0) {
