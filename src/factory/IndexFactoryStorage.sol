@@ -57,16 +57,21 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public roundIdToRiskAssetAmount;
     mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
     mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
+    mapping(uint256 => uint256) public nonceToIssuanceRound;
+    mapping(uint256 => uint256) public nonceToRedemptionRound;
     mapping(uint256 => uint256) public issuanceFeeByNonce;
     mapping(address => uint256) public tokenPendingRebalanceAmount;
     mapping(address => mapping(uint256 => uint256)) public tokenPendingRebalanceAmountByNonce;
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
+    event IssuanceNonceRecorded(uint256 indexed roundId, uint256 indexed nonce); // NEW
+    event RedemptionNonceRecorded(uint256 indexed roundId, uint256 indexed nonce);
 
     modifier onlyFactory() {
         require(
-            msg.sender == address(indexFactory) || msg.sender == nexBot || msg.sender == address(sca) || msg.sender == address(factoryBalancer),
+            msg.sender == address(indexFactory) || msg.sender == nexBot || msg.sender == address(sca)
+                || msg.sender == address(factoryBalancer),
             "Caller is not a factory contract"
         );
         _;
@@ -112,6 +117,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         functionsOracle = FunctionsOracle(_functionsOracle);
         sca = StagingCustodyAccount(_stagingCustodyAccount);
         vault = Vault(_vault);
+        feeVault = FeeVault(_feeVault);
         usdc = IERC20(_usdc);
         bond = _bond;
 
@@ -146,7 +152,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function setSCA(address _sca) external onlyOwner {
         if (_sca == address(0)) revert InvalidAddress();
-        require(_sca != address(0), "zero");
         sca = StagingCustodyAccount(_sca);
     }
 
@@ -194,7 +199,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         redemptionRoundActive[roundId] = flag;
     }
 
-    function setIssuancenRoundActive(uint256 roundId, bool flag) external onlyFactory {
+    function setIssuanceRoundActive(uint256 roundId, bool flag) external onlyFactory {
         issuanceRoundActive[roundId] = flag;
     }
 
@@ -233,6 +238,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function getRedemptionRoundActive(uint256 roundId) external view returns (bool) {
         return redemptionRoundActive[roundId];
+    }
+
+    function getIssuanceRoundIdToNonces(uint256 roundId) external view returns (uint256[] memory) {
+        return issuanceRoundIdToNonces[roundId];
+    }
+
+    function getRedemptionRoundIdToNonces(uint256 roundId) external view returns (uint256[] memory) {
+        return redemptionRoundIdToNonces[roundId];
     }
 
     function setIssuanceRequesterByNonce(uint256 nonce, address requester) external onlyFactory {
@@ -275,6 +288,19 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
             address tokenAddress = functionsOracle.currentList(i);
             resetTokenPendingRebalanceAmount(tokenAddress, _nonce);
         }
+    }
+
+    function recordIssuanceNonce(uint256 roundId, uint256 nonce) external onlyFactory {
+        issuanceRoundIdToNonces[roundId].push(nonce);
+        nonceToIssuanceRound[nonce] = roundId;
+        emit IssuanceNonceRecorded(roundId, nonce);
+    }
+
+    /// @dev Record redemption nonce in both round->nonces and nonce->round
+    function recordRedemptionNonce(uint256 roundId, uint256 nonce) external onlyFactory {
+        redemptionRoundIdToNonces[roundId].push(nonce);
+        nonceToRedemptionRound[nonce] = roundId;
+        emit RedemptionNonceRecorded(roundId, nonce);
     }
 
     function undoIssuance(address account, uint256 amount) external onlyFactory {
@@ -452,7 +478,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function _prevIssuanceSettled(uint256 id) internal view returns (bool) {
-        if (id == 1) return true; // no previous round
+        if (id == 1) return true;
         uint256 p = id - 1;
         return !issuanceRoundActive[p] && issuanceIsCompleted[p];
     }

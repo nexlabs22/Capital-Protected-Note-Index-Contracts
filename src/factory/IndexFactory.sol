@@ -94,9 +94,10 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         address[] memory _tokenInPath,
         uint24[] memory _tokenInFees,
         uint256 _inputAmount
-    ) public payable nonReentrant returns (uint256) {
+    ) public payable whenNotPaused nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
+        require(msg.value == ethFee, "Wrong ETH fee");
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -110,28 +111,37 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         factoryStorage.setIssuanceRequesterByNonce(issuanceNonce, msg.sender);
         factoryStorage.addIssuanceForCurrentRound(msg.sender, _inputAmount);
 
+        uint256 currentRound = factoryStorage.issuanceRoundId();
+        factoryStorage.recordIssuanceNonce(currentRound, issuanceNonce);
+
         emit RequestIssuance(
             issuanceNonce, msg.sender, address(factoryStorage.usdc()), _inputAmount, 0, block.timestamp
         );
         return issuanceNonce;
     }
 
-    function redemption(uint256 _amount) external payable nonReentrant returns (uint256 nonce) {
+    function redemption(uint256 _amount) external payable whenNotPaused nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getRedemptionFee(_amount);
+        require(msg.value == ethFee, "Wrong ETH fee");
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
-        factoryStorage.indexToken().transferFrom(msg.sender, address(factoryStorage.sca()), _amount);
+        IERC20(factoryStorage.indexToken()).safeTransferFrom(msg.sender, address(factoryStorage.sca()), _amount);
 
         nonce = ++redemptionNonce;
 
         factoryStorage.setRedemptionInputAmount(nonce, _amount);
         factoryStorage.addRedemptionForCurrentRound(msg.sender, _amount);
+
+        uint256 currentRedemRound = factoryStorage.redemptionRoundId();
+        factoryStorage.recordRedemptionNonce(currentRedemRound, nonce);
+
         emit RequestRedemption(nonce, msg.sender, address(factoryStorage.usdc()), _amount, 0, block.timestamp);
+        return nonce;
     }
 
-    function cancelIssuance(uint256 nonce) external nonReentrant {
+    function cancelIssuance(uint256 nonce) external whenNotPaused nonReentrant {
         require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
@@ -150,13 +160,13 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         factoryStorage.undoIssuance(requester, amount);
         factoryStorage.setIssuanceCompleted(nonce, true);
         factoryStorage.setIssuanceFeeByNonce(nonce, 0);
-        factoryStorage.sca().refund(requester, amount);
+        factoryStorage.sca().refund(roundId, requester, amount);
         FeeVault(feeVault).refund(requester, fee);
 
         emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
     }
 
-    function cancelRedemption(uint256 nonce) external nonReentrant {
+    function cancelRedemption(uint256 nonce) external whenNotPaused nonReentrant {
         require(!factoryStorage.redemptionIsCompleted(nonce), "Redemption is completed");
 
         address requester = factoryStorage.redemptionRequesterByNonce(nonce);
