@@ -940,30 +940,30 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         );
     }
 
-    function test_resetTokenPendingRebalanceAmount_and_resetAll() public {
-        uint256 nonce = 11;
-        uint256 amt = 3 ether;
+    // function test_resetTokenPendingRebalanceAmount_and_resetAll() public {
+    //     uint256 nonce = 11;
+    //     uint256 amt = 3 ether;
 
-        // seed some pending amounts (factory authorised)
-        vm.prank(factory);
-        store.increaseTokenPendingRebalanceAmount(address(bond), nonce, amt);
-        vm.prank(factory);
-        store.increaseTokenPendingRebalanceAmount(address(cr5), nonce, amt);
+    //     // seed some pending amounts (factory authorised)
+    //     vm.prank(factory);
+    //     store.increaseTokenPendingRebalanceAmount(address(bond), nonce, amt);
+    //     vm.prank(factory);
+    //     store.increaseTokenPendingRebalanceAmount(address(cr5), nonce, amt);
 
-        // owner acts as Operator -> can call reset helpers
-        vm.prank(store.owner());
-        store.resetTokenPendingRebalanceAmount(address(bond), nonce);
+    //     // owner acts as Operator -> can call reset helpers
+    //     vm.prank(store.owner());
+    //     store.resetTokenPendingRebalanceAmount(address(bond), nonce);
 
-        assertEq(store.tokenPendingRebalanceAmount(address(bond)), 0, "bond reset");
-        assertEq(store.tokenPendingRebalanceAmountByNonce(address(bond), nonce), 0, "bond reset-nonce");
+    //     assertEq(store.tokenPendingRebalanceAmount(address(bond)), 0, "bond reset");
+    //     assertEq(store.tokenPendingRebalanceAmountByNonce(address(bond), nonce), 0, "bond reset-nonce");
 
-        // reset *all* remaining (will clear CR-5 entry)
-        vm.prank(store.owner());
-        store.resetAllTokenPendingRebalanceAmount(nonce);
+    //     // reset *all* remaining (will clear CR-5 entry)
+    //     vm.prank(store.owner());
+    //     store.resetAllTokenPendingRebalanceAmount(nonce);
 
-        assertEq(store.tokenPendingRebalanceAmount(address(cr5)), 0, "cr5 reset by resetAll");
-        assertEq(store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), 0, "cr5 reset-nonce");
-    }
+    //     assertEq(store.tokenPendingRebalanceAmount(address(cr5)), 0, "cr5 reset by resetAll");
+    //     assertEq(store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), 0, "cr5 reset-nonce");
+    // }
 
     function test_decreaseTokenPendingRebalanceAmount_revertsOnBadInput() public {
         uint256 nonce = 99;

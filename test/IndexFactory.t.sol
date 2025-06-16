@@ -78,7 +78,7 @@ contract DummyOracle {
     mapping(address => bool) public isOperator;
 }
 
-contract IndexFactoryTest is Test {
+contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     address owner = address(this);
     address feeRec = vm.addr(1);
     address nexBot = vm.addr(2);
@@ -753,5 +753,15 @@ contract IndexFactoryTest is Test {
         vm.prank(address(this));
         factory.unpause();
         assertFalse(factory.paused());
+    }
+
+    function test_redemption_revertsOnWrongEthFee() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("Wrong ETH fee"));
+        factory.redemption{value: 5}(idxAmount);
+        vm.stopPrank();
     }
 }

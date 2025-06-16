@@ -213,6 +213,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function test_withdrawForPurchase_FailWhenTotalIssuanceByRoundIsZero() public {
+        vm.startPrank(address(factory));
+        store.setIssuanceRoundActive(2, true);
+        vm.stopPrank();
+
         vm.startPrank(nexBot);
 
         vm.expectRevert("Nothing to withdraw");
@@ -270,6 +274,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     }
 
     function test_distributeTokens_FailWhenRoundIdIsGreaterThanCurrentRoundId() public {
+        vm.startPrank(address(factory));
+        store.addNonceToIssuanceRound(2, 1);
+        store.addNonceToIssuanceRound(2, 2);
+        vm.stopPrank();
+
         vm.startPrank(nexBot);
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
@@ -392,6 +401,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
         vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
+
+        vm.startPrank(address(factory));
         store.setRedemptionRoundActive(1, false);
         vm.stopPrank();
 
@@ -493,6 +507,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
         address charlie = vm.addr(12);
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
 
         vm.prank(address(factory));
         store.addRedemptionForCurrentRound(charlie, 0);
@@ -598,12 +617,18 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         StagingCustodyAccount scaImpl = new StagingCustodyAccount();
         StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
 
-        vm.expectRevert("Invalid address for _indexFactroyStorageAddress");
+        vm.expectRevert("Invalid address for _indexFactoryStorageAddress");
         scaProxy.initialize(address(0));
     }
 
     function test_completeIssuance_branch_253_True() public {
         address charlie = vm.addr(12);
+
+        vm.startPrank(address(factory));
+        store.addNonceToIssuanceRound(1, 1);
+        store.addNonceToIssuanceRound(1, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.addIssuanceForCurrentRound(charlie, 0);
 
@@ -645,8 +670,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         try sca.requestRedemption(1, new address[](0), new uint24[](0)) {} catch {}
         vm.stopPrank();
 
-        uint256 pct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
-        uint256 expectedSlice = bondBal * pct1e18 / 1e18;
+        // uint256 pct1e18 = (idxAlice + idxBob) * 1e18 / idx.totalSupply();
+        // uint256 expectedSlice = bondBal * pct1e18 / 1e18;
     }
 
     function test_getPortfolioValue_branch_399_Else() public {
@@ -720,10 +745,15 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxAlice = 100 ether;
         uint256 idxBob = 50 ether;
 
-        vm.prank(address(factory));
+        vm.startPrank(address(factory));
         store.addIssuanceForCurrentRound(alice, idxAlice);
-        vm.prank(address(factory));
         store.addIssuanceForCurrentRound(bob, idxBob);
+        vm.stopPrank();
+
+        vm.startPrank(address(factory));
+        store.addNonceToIssuanceRound(2, 1);
+        store.addNonceToIssuanceRound(2, 2);
+        vm.stopPrank();
 
         vm.prank(address(factory));
         store.setIssuanceRoundActive(1, false);
@@ -754,6 +784,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
     function test_completeIssuance_branch_239_True() public {
         uint256 roundId = 1;
 
+        vm.startPrank(address(factory));
+        store.addNonceToIssuanceRound(roundId, 1);
+        store.addNonceToIssuanceRound(roundId, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.setIssuanceRoundActive(roundId, true);
         vm.prank(address(factory));
@@ -769,6 +804,16 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxAlice = 100 ether;
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(2, 1);
+        store.addNonceToRedemptionRound(2, 2);
+        vm.stopPrank();
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
 
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, false);
@@ -804,6 +849,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
         vm.prank(address(factory));
@@ -826,6 +876,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, false);
         vm.prank(address(factory));
@@ -845,12 +900,18 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
 
     function test_completeRedemption_branch_299_True() public {
         uint256 roundId = 1;
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(roundId, 1);
+        store.addNonceToRedemptionRound(roundId, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.setRedemptionRoundActive(roundId, false);
         vm.prank(address(factory));
         store.setRedemptionCompleted(roundId, false);
         vm.startPrank(nexBot);
-        vm.expectRevert(RedemptionAmountIsZero.selector);
+        vm.expectRevert("No tokens to redeem");
         sca.completeRedemption(roundId, 0, 0);
         vm.stopPrank();
     }
@@ -859,6 +920,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxAlice = 80 ether;
         uint256 idxBob = 20 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(1, 1);
+        store.addNonceToRedemptionRound(1, 2);
+        vm.stopPrank();
 
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, false);
@@ -1023,6 +1089,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxAlice = 100 ether;
         uint256 idxBob = 50 ether;
 
+        vm.startPrank(address(factory));
+        store.addNonceToIssuanceRound(1, 1);
+        store.addNonceToIssuanceRound(2, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.addIssuanceForCurrentRound(alice, idxAlice);
         vm.prank(address(factory));
@@ -1055,6 +1126,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
 
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(2, 1);
+        store.addNonceToRedemptionRound(2, 2);
+        vm.stopPrank();
+
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, true);
         vm.prank(address(factory));
@@ -1081,6 +1157,11 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 idxAlice = 100 ether;
         uint256 idxBob = 50 ether;
         _bootstrapRedemptionRound(idxAlice, idxBob);
+
+        vm.startPrank(address(factory));
+        store.addNonceToRedemptionRound(2, 1);
+        store.addNonceToRedemptionRound(2, 2);
+        vm.stopPrank();
 
         vm.prank(address(factory));
         store.setRedemptionRoundActive(1, false);
@@ -1129,6 +1210,93 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.startPrank(nexBot);
         vm.expectRevert("Prev redemption round active");
         sca.requestRedemption(2, new address[](0), new uint24[](0));
+        vm.stopPrank();
+    }
+
+    function test_setNexBotAddress_RevertWhenZeroAddress_branch_77_True() public {
+        vm.expectRevert(ZeroAddress.selector);
+        sca.setNexBotAddress(address(0));
+    }
+
+    function test_setRiskAssetFactoryAddress_branch_82_True() public {
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+
+        scaProxy.initialize(address(store));
+
+        vm.expectRevert(ZeroAddress.selector);
+        scaProxy.setRiskAssetFactoryAddress(address(0));
+    }
+
+    function test_setBondAddress_RevertWhenZeroAddress_branch_87_True() public {
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+
+        scaProxy.initialize(address(store));
+
+        vm.expectRevert(ZeroAddress.selector);
+        scaProxy.setBondAddress(address(0));
+    }
+
+    function test_setIndexFactoryStorageAddress_branch_92_True() public {
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+
+        scaProxy.initialize(address(store));
+
+        vm.expectRevert(ZeroAddress.selector);
+        scaProxy.setIndexFactoryStorageAddress(address(0));
+    }
+
+    function test_requestIssuance_branch_238_Else() public {
+        TestFunctionsOracle impl = new TestFunctionsOracle();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(impl), abi.encodeCall(FunctionsOracle.initialize, (address(0x1), bytes32("don"))));
+        TestFunctionsOracle singleOracle = TestFunctionsOracle(address(proxy));
+
+        address[] memory tkns = new address[](1);
+        uint256[] memory shrs = new uint256[](1);
+        uint8[] memory types = new uint8[](1);
+        tkns[0] = address(bond);
+        shrs[0] = 100e18;
+        types[0] = 0;
+        singleOracle.seed(types, tkns, shrs);
+
+        IndexFactoryStorage implStore = new IndexFactoryStorage();
+        ERC1967Proxy proxyStore = new ERC1967Proxy(
+            address(implStore),
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(idx),
+                    address(factory),
+                    address(singleOracle),
+                    address(sca),
+                    address(store.vault()),
+                    nexBot,
+                    address(0xDEAD),
+                    address(usdc),
+                    address(bond),
+                    feeVault,
+                    address(1)
+                )
+            )
+        );
+        IndexFactoryStorage singleStore = IndexFactoryStorage(address(proxyStore));
+
+        StagingCustodyAccount scaImpl = new StagingCustodyAccount();
+        StagingCustodyAccount singleSCA = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
+        singleSCA.initialize(address(singleStore));
+
+        vm.prank(address(factory));
+        singleStore.addIssuanceForCurrentRound(alice, 100_000 * ONE_USDC);
+        usdc.mint(address(singleSCA), 100_000 * ONE_USDC);
+        vm.prank(address(factory));
+        singleStore.setIssuanceRoundActive(1, true);
+
+        vm.startPrank(nexBot);
+        vm.expectRevert("Caller is not a factory contract");
+        singleSCA.requestIssuance{value: 0}(1, new address[](0), new uint24[](0));
         vm.stopPrank();
     }
 }
