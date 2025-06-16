@@ -684,7 +684,7 @@ contract IndexFactoryTest is Test {
         vm.stopPrank();
 
         vm.startPrank(address(factory));
-        store.setIssuancenRoundActive(1, false);
+        store.setIssuanceRoundActive(1, false);
         assertEq(store.issuanceRoundActive(1), false);
         vm.stopPrank();
 

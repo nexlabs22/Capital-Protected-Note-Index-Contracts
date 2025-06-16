@@ -283,7 +283,8 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.startPrank(alice);
 
         vm.expectRevert("Caller is not the owner or operator");
-        sca.refund(alice, 1);
+        // uint256 roundId =
+        sca.refund(1, alice, 1);
 
         vm.stopPrank();
     }
@@ -292,10 +293,10 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.startPrank(nexBot);
 
         vm.expectRevert(ZeroAddress.selector);
-        sca.refund(address(0), 1);
+        sca.refund(1, address(0), 1);
 
         vm.expectRevert(ZeroAmount.selector);
-        sca.refund(alice, 0);
+        sca.refund(1, alice, 0);
 
         vm.stopPrank();
     }
@@ -616,7 +617,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         idx.mint(address(sca), 100 ether);
 
         vm.startPrank(nexBot);
-        store.setIssuancenRoundActive(1, false);
+        store.setIssuanceRoundActive(1, false);
         vm.stopPrank();
 
         vm.startPrank(nexBot);
@@ -703,7 +704,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 roundId = 1;
 
         vm.prank(address(factory));
-        store.setIssuancenRoundActive(roundId, true);
+        store.setIssuanceRoundActive(roundId, true);
         vm.prank(address(factory));
         store.setIssuanceCompleted(roundId, true);
 
@@ -725,7 +726,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.addIssuanceForCurrentRound(bob, idxBob);
 
         vm.prank(address(factory));
-        store.setIssuancenRoundActive(1, false);
+        store.setIssuanceRoundActive(1, false);
         vm.prank(address(factory));
         store.setIssuanceCompleted(1, true);
 
@@ -743,7 +744,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         idx.mint(address(sca), 100 ether);
 
         vm.startPrank(nexBot);
-        store.setIssuancenRoundActive(2, false);
+        store.setIssuanceRoundActive(2, false);
         sca.completeIssuance(2, bondPrice, crypto5Price);
         vm.stopPrank();
 
@@ -754,7 +755,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint256 roundId = 1;
 
         vm.prank(address(factory));
-        store.setIssuancenRoundActive(roundId, true);
+        store.setIssuanceRoundActive(roundId, true);
         vm.prank(address(factory));
         store.setIssuanceCompleted(roundId, false);
 
@@ -1028,7 +1029,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.addIssuanceForCurrentRound(bob, idxBob);
 
         vm.prank(address(factory));
-        store.setIssuancenRoundActive(1, true);
+        store.setIssuanceRoundActive(1, true);
         vm.prank(address(factory));
         store.setIssuanceCompleted(1, false);
 
@@ -1039,7 +1040,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.prank(address(factory));
         store.addIssuanceForCurrentRound(bob, idxBob);
         vm.prank(address(factory));
-        store.setIssuancenRoundActive(2, false);
+        store.setIssuanceRoundActive(2, false);
         vm.prank(address(factory));
         store.setIssuanceCompleted(2, false);
 
