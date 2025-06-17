@@ -487,14 +487,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function _prevIssuanceSettled(uint256 id) internal view returns (bool) {
         if (id == 1) return true;
-        uint256 p = id - 1;
-        return !issuanceRoundActive[p] && issuanceIsCompleted[p];
+        uint256 prev = id - 1;
+        return !issuanceRoundActive[prev] && issuanceIsCompleted[prev];
     }
 
     function _prevRedemptionSettled(uint256 id) internal view returns (bool) {
         if (id == 1) return true;
-        uint256 p = id - 1;
-        return !redemptionRoundActive[p] && redemptionIsCompleted[p];
+        uint256 prev = id - 1;
+        return !redemptionRoundActive[prev] && redemptionIsCompleted[prev];
     }
 
     function getPortfolioValue(uint256 bondPrice, uint256 riskAssetPrice) public view returns (uint256 totalValue) {
@@ -502,7 +502,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
         for (uint256 i; i < tokens; ++i) {
             address token = functionsOracle.currentList(i);
-            // uint256 balance = IERC20(token).balanceOf(address(vault));
             uint256 balance = IERC20(token).balanceOf(address(vault)) + tokenPendingRebalanceAmount[token];
             if (balance == 0) continue;
 

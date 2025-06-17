@@ -133,17 +133,12 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint256[] memory soldQty = new uint256[](currentList);
         uint256 soldLen;
 
-        // uint256 totalRedemptionFee = factoryStorage.getRedemptionFee(qty18);
         uint256 totalRedemptionFee;
 
         for (uint256 i; i < currentList; ++i) {
             address token = functionsOracle.currentList(i);
 
             (bool didSell, uint256 qty18) = _processToken(nonce, token, portfolioValue, ctx);
-            // if (didSell && functionsOracle.tokenAssetType(token) == 1) {
-            //     totalRedemptionFee += factoryStorage.getRedemptionFee(qty18);
-            // }
-            // if (!didSell) continue;
 
             if (didSell) {
                 soldToken[soldLen] = token;
@@ -154,11 +149,6 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
             if (functionsOracle.tokenAssetType(token) == 1 && qty18 > 0) {
                 totalRedemptionFee += factoryStorage.getRedemptionFee(qty18);
             }
-
-            // if (functionsOracle.tokenAssetType(token) == 1) {
-            //     totalRedemptionFee += factoryStorage.getRedemptionFee(qty18);
-            //     require(msg.value == totalRedemptionFee, "balancer: wrong ETH fee");
-            // }
         }
         require(msg.value == totalRedemptionFee, "balancer: wrong ETH fee");
 
@@ -222,22 +212,44 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         require(batch.secondDone, "rebalance: phase-2 not done");
 
         Vault vault = factoryStorage.vault();
-        uint256 currentlist = functionsOracle.totalCurrentList();
+        uint256 len = functionsOracle.totalCurrentList();
 
-        for (uint256 i; i < currentlist; ++i) {
+        // for each token in the index, send *all* of the Balancer's balance into the Vault
+        for (uint256 i = 0; i < len; ++i) {
             address token = functionsOracle.currentList(i);
-            uint256 balance = IERC20(token).balanceOf(address(this));
-            if (balance > 0) IERC20(token).safeTransfer(address(vault), balance);
+            uint256 bal = IERC20(token).balanceOf(address(this));
+            if (bal > 0) {
+                IERC20(token).safeTransfer(address(vault), bal);
+            }
         }
 
         factoryStorage.resetAllTokenPendingRebalanceAmount(batchId);
-
         functionsOracle.updateCurrentList();
-
         unpauseIndexFactory();
-
         emit CompleteRebalanceActions(batchId, block.timestamp);
     }
+
+    // function completeRebalanceActions(uint256 batchId) external nonReentrant onlyOwnerOrOperator {
+    //     RebalanceBatch storage batch = _rebalanceBatches[batchId];
+    //     require(batch.secondDone, "rebalance: phase-2 not done");
+
+    //     Vault vault = factoryStorage.vault();
+    //     uint256 currentlist = functionsOracle.totalCurrentList();
+
+    //     for (uint256 i; i < currentlist; ++i) {
+    //         address token = functionsOracle.currentList(i);
+    //         uint256 balance = IERC20(token).balanceOf(address(this));
+    //         if (balance > 0) IERC20(token).safeTransfer(address(vault), balance);
+    //     }
+
+    //     factoryStorage.resetAllTokenPendingRebalanceAmount(batchId);
+
+    //     functionsOracle.updateCurrentList();
+
+    //     unpauseIndexFactory();
+
+    //     emit CompleteRebalanceActions(batchId, block.timestamp);
+    // }
 
     function issuanceRiskAsset(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
         public
@@ -265,27 +277,6 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         emit RedemptionRiskAssetForRebalance(amountIn, block.timestamp);
     }
 
-    function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
-        internal
-        returns (uint256 qty18)
-    {
-        qty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
-
-        factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, qty18);
-
-        RebalanceBatch storage batch = _rebalanceBatches[nonce];
-        batch.tokenDelta[riskAssetToken] = qty18;
-        batch.totalUsdcObtained += usdCut18;
-
-        ctx.vault.withdrawFunds(riskAssetToken, address(this), qty18);
-
-        IERC20(riskAssetToken).approve(factoryStorage.riskAssetFactoryAddress(), qty18);
-
-        uint256 ethFee = factoryStorage.getRedemptionFee(qty18);
-
-        this.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
-    }
-
     function _processToken(uint256 nonce, address token, uint256 nav18, Ctx memory ctx)
         internal
         returns (bool sold, uint256 qty18Sold)
@@ -306,20 +297,80 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
 
     function _sellBond(uint256 nonce, address bondToken, uint256 usdCut18, Ctx memory ctx)
         internal
-        returns (uint256 qty18)
+        returns (uint256 soldQty18)
     {
-        qty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
+        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
 
-        factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, qty18);
+        uint256 avail = IERC20(bondToken).balanceOf(address(ctx.vault));
+        soldQty18 = rawQty18 > avail ? avail : rawQty18;
 
+        factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, soldQty18);
         RebalanceBatch storage batch = _rebalanceBatches[nonce];
-        batch.tokenDelta[bondToken] = qty18;
-        batch.totalUsdcObtained += usdCut18;
-        uint256 amount = ctx.vault.withdrawFunds(bondToken, address(this), qty18);
-        // ctx.vault.withdrawFunds(bondToken, factoryStorage.nexBot(), amount);
-        // withdrawBondForNexBot(amount);
-        IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), amount);
+        batch.tokenDelta[bondToken] = soldQty18;
+        batch.totalUsdcObtained += usdCut18 * soldQty18 / rawQty18;
+
+        uint256 pulled = ctx.vault.withdrawFunds(bondToken, address(this), soldQty18);
+        IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), pulled);
     }
+
+    function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
+        internal
+        returns (uint256 soldQty18)
+    {
+        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
+
+        uint256 avail = IERC20(riskAssetToken).balanceOf(address(ctx.vault));
+        soldQty18 = rawQty18 > avail ? avail : rawQty18;
+
+        factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, soldQty18);
+        RebalanceBatch storage batch = _rebalanceBatches[nonce];
+        batch.tokenDelta[riskAssetToken] = soldQty18;
+        batch.totalUsdcObtained += usdCut18 * soldQty18 / rawQty18;
+
+        ctx.vault.withdrawFunds(riskAssetToken, address(this), soldQty18);
+
+        IERC20(riskAssetToken).approve(factoryStorage.riskAssetFactoryAddress(), soldQty18);
+        uint256 ethFee = factoryStorage.getRedemptionFee(soldQty18);
+        this.redemptionRiskAsset{value: ethFee}(soldQty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+    }
+
+    // function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
+    //     internal
+    //     returns (uint256 qty18)
+    // {
+    //     qty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
+
+    //     factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, qty18);
+
+    //     RebalanceBatch storage batch = _rebalanceBatches[nonce];
+    //     batch.tokenDelta[riskAssetToken] = qty18;
+    //     batch.totalUsdcObtained += usdCut18;
+
+    //     ctx.vault.withdrawFunds(riskAssetToken, address(this), qty18);
+
+    //     IERC20(riskAssetToken).approve(factoryStorage.riskAssetFactoryAddress(), qty18);
+
+    //     uint256 ethFee = factoryStorage.getRedemptionFee(qty18);
+
+    //     this.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+    // }
+
+    // function _sellBond(uint256 nonce, address bondToken, uint256 usdCut18, Ctx memory ctx)
+    //     internal
+    //     returns (uint256 qty18)
+    // {
+    //     qty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
+
+    //     factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, qty18);
+
+    //     RebalanceBatch storage batch = _rebalanceBatches[nonce];
+    //     batch.tokenDelta[bondToken] = qty18;
+    //     batch.totalUsdcObtained += usdCut18;
+    //     uint256 amount = ctx.vault.withdrawFunds(bondToken, address(this), qty18);
+    //     // ctx.vault.withdrawFunds(bondToken, factoryStorage.nexBot(), amount);
+    //     // withdrawBondForNexBot(amount);
+    //     IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), amount);
+    // }
 
     function _mintCrypto5(uint256 amountUsdc, address[] calldata path, uint24[] calldata fees, uint256 msgValue)
         internal

@@ -214,11 +214,11 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     {
         address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
         for (uint256 i; i < users.length; ++i) {
-            address u = users[i];
-            uint256 userAmt = factoryStorage.issuanceAmountByRoundUser(roundId, u);
+            address user = users[i];
+            uint256 userAmt = factoryStorage.issuanceAmountByRoundUser(roundId, user);
             uint256 owed = (mintAmt * userAmt) / totalUsdc;
             if (owed > 0) {
-                factoryStorage.indexToken().transfer(u, owed);
+                factoryStorage.indexToken().transfer(user, owed);
                 distributed += owed;
             }
         }
