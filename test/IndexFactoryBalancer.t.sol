@@ -49,6 +49,14 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
     address feeRec = vm.addr(100);
     address nexBot = vm.addr(101);
 
+    event FirstRebalanceAction(
+        uint256 indexed nonce, address[] tokensSold, uint256[] amountsSold, uint256 usdcExpected, uint256 time
+    );
+    event SecondRebalanceAction(uint256 nonce, uint256 time);
+    event CompleteRebalanceActions(uint256 nonce, uint256 time);
+    event IssuanceRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
+    event RedemptionRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
+
     function setUp() public {
         usdc = new MockUSDC("USD Coin", "USDC");
         bond = new MockBond();
@@ -432,58 +440,6 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         assertEq(usdc.balanceOf(address(sca)), scaUsdcBefore + proceeds, "SCA must receive all USDC");
     }
 
-    // function test_completeRebalanceActions_transfersAndUnpauses() public {
-    //     oracle.setCurrent(address(cr5), 25e18);
-
-    //     uint256 pBond = 2 * ONE_18;
-    //     uint256 pCr5 = 1 * ONE_18;
-
-    //     bond.mint(address(vault), 100 * ONE_18);
-    //     cr5.mint(address(vault), 50 * ONE_18);
-
-    //     oracle.setCurrent(address(bond), 75e18); // 75 %
-    //     oracle.setCurrent(address(cr5), 25e18); // 25 %
-
-    //     vm.startPrank(nexBot);
-    //     uint256 nonce = balancer.firstRebalanceAction{value: 10}(pBond, pCr5, new address[](0), new uint24[](0));
-    //     vm.stopPrank();
-
-    //     uint256 nav = 250 * ONE_18;
-    //     uint256 sold = _calcSoldCr5(nav, 5e20, /*5 %*/ pCr5);
-
-    //     uint256 wantC = 50 * ONE_18 - sold;
-
-    //     assertEq(bond.balanceOf(address(vault)), 100 * ONE_18, "Vault bERNX unchanged");
-    //     assertEq(cr5.balanceOf(address(vault)), wantC, "Vault CR-5 reduced");
-
-    //     uint256 proceeds = 200 * ONE_USDC;
-    //     usdc.mint(address(balancer), proceeds);
-    //     uint256 nexBotPre = usdc.balanceOf(nexBot);
-
-    //     vm.startPrank(nexBot);
-    //     balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
-    //     vm.stopPrank();
-
-    //     assertEq(usdc.balanceOf(nexBot), nexBotPre + proceeds, "nexBot paid");
-
-    //     uint256 fresh = 5 * ONE_18;
-    //     bond.mint(address(balancer), fresh);
-
-    //     uint256 bondPre = bond.balanceOf(address(vault));
-    //     uint256 cr5Pre = cr5.balanceOf(address(vault));
-
-    //     vm.startPrank(nexBot);
-    //     balancer.completeRebalanceActions(nonce);
-    //     vm.stopPrank();
-
-    //     assertEq(bond.balanceOf(address(balancer)), 0, "balancer bond 0");
-    //     assertEq(cr5.balanceOf(address(balancer)), 0, "balancer cr-5 0");
-
-    //     assertEq(bond.balanceOf(address(vault)), bondPre + fresh, "vault got bonds");
-    //     assertEq(cr5.balanceOf(address(vault)), cr5Pre, "vault CR-5 unchanged");
-    //     assertTrue(!factory.paused(), "factory un-paused");
-    // }
-
     function test_fullScenario_rebalanceEndToEnd() public {
         uint256 priceBond = 2 * ONE_18;
         uint256 priceCr5 = 1 * ONE_18;
@@ -577,5 +533,117 @@ contract IndexFactoryBalancerTest is OlympixUnitTest("IndexFactoryBalancer") {
         uint256 qty = 1 * ONE_18; // 1 unit
         uint256 fee = store.getRedemptionFee(qty);
         assertGt(fee, 0, "expected a positive fee");
+    }
+
+    function test_setIndexFactoryStorage_onlyOwner() public {
+        IndexFactoryStorage fake = IndexFactoryStorage(address(store));
+        vm.prank(vm.addr(999));
+        // vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert();
+        balancer.setIndexFactoryStorage(address(fake));
+    }
+
+    function test_setFunctionsOracle_onlyOwner() public {
+        FunctionsOracle fake = FunctionsOracle(address(oracle));
+        vm.prank(vm.addr(999));
+        // vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert();
+        balancer.setFunctionsOracle(address(fake));
+    }
+
+    function test_withdrawBondForNexBot_insufficient() public {
+        uint256 want = 1e18;
+        vm.prank(vm.addr(999));
+        vm.expectRevert("Caller is not the owner or operator");
+        balancer.withdrawBondForNexBot(want);
+
+        vm.prank(balancer.owner());
+        vm.expectRevert("Invalid amount");
+        balancer.withdrawBondForNexBot(want);
+    }
+
+    function test_issuanceRiskAsset_revertAndEmit() public {
+        vm.expectRevert("BALANCER: no ETH attached");
+        balancer.issuanceRiskAsset(1e6, new address[](0), new uint24[](0));
+
+        vm.deal(address(this), 1 ether);
+        vm.prank(balancer.owner());
+        vm.expectEmit(true, false, false, true);
+        emit IssuanceRiskAssetForRebalance(123, block.timestamp);
+        balancer.issuanceRiskAsset{value: 1}(123, new address[](0), new uint24[](0));
+    }
+
+    function test_redemptionRiskAsset_revertAndEmit() public {
+        vm.expectRevert("BALANCER: no ETH");
+        balancer.redemptionRiskAsset(1e18, address(0), new address[](0), new uint24[](0));
+
+        vm.deal(address(this), 1 ether);
+        vm.prank(balancer.owner());
+        vm.expectEmit(true, false, false, true);
+        emit RedemptionRiskAssetForRebalance(2e18, block.timestamp);
+        balancer.redemptionRiskAsset{value: 1}(2e18, address(usdc), new address[](0), new uint24[](0));
+    }
+
+    function test_secondRebalanceAction_phase1NotDone() public {
+        vm.expectRevert("rebalance: phase-1 not done");
+        balancer.secondRebalanceAction(1, new address[](0), new uint24[](0));
+    }
+
+    function test_secondRebalanceAction_onlyOwnerOrOperator() public {
+        bond.mint(address(vault), ONE_18 * 10);
+        cr5.mint(address(vault), ONE_18 * 5);
+        oracle.setCurrent(address(bond), 90e18);
+        oracle.setCurrent(address(cr5), 10e18);
+
+        vm.startPrank(nexBot);
+        uint256 nonce = balancer.firstRebalanceAction{value: 0}(2e18, 1e18, new address[](0), new uint24[](0));
+        vm.stopPrank();
+
+        // vm.expectRevert("Caller is not the owner or operator");
+        vm.expectRevert();
+        balancer.secondRebalanceAction(nonce, new address[](0), new uint24[](0));
+    }
+
+    function test_completeRebalanceActions_phase2NotDone() public {
+        vm.expectRevert("rebalance: phase-2 not done");
+        balancer.completeRebalanceActions(1);
+    }
+
+    function test_completeRebalanceActions_transfersLeftovers() public {
+        // bond.mint(address(vault), 50 * ONE_18);
+        // cr5.mint(address(vault), 20 * ONE_18);
+
+        console.log("CR5 Balance of Vault: ", cr5.balanceOf(address(vault)));
+        bond.mint(address(vault), 50 * ONE_18);
+        cr5.mint(address(vault), 24 * ONE_18);
+        console.log("CR5 Balance of Vault: ", cr5.balanceOf(address(vault)));
+        oracle.setCurrent(address(bond), 60e18);
+        oracle.setCurrent(address(cr5), 40e18);
+
+        deal(nexBot, 1 ether);
+        deal(address(balancer), 1 ether);
+
+        vm.startPrank(nexBot);
+        uint256 nonce = balancer.firstRebalanceAction{value: 10}(2e18, 1e18, new address[](0), new uint24[](0));
+        vm.stopPrank();
+
+        usdc.mint(address(balancer), 10 * ONE_USDC);
+        oracle.setCurrent(address(bond), 80e18);
+        oracle.setCurrent(address(cr5), 20e18);
+        uint256 vaultUsdcBefore = usdc.balanceOf(address(vault));
+        balancer.secondRebalanceAction{value: 0}(nonce, new address[](0), new uint24[](0));
+        assertEq(usdc.balanceOf(address(vault)), vaultUsdcBefore + 10 * ONE_USDC);
+
+        vm.prank(balancer.owner());
+        vm.expectEmit(true, false, false, false);
+        emit CompleteRebalanceActions(nonce, block.timestamp);
+        balancer.completeRebalanceActions(nonce);
+
+        assertEq(bond.balanceOf(address(balancer)), 0);
+        assertEq(cr5.balanceOf(address(balancer)), 0);
+
+        assertEq(bond.balanceOf(address(vault)), 50 * ONE_18 + 3 * ONE_18);
+        assertEq(cr5.balanceOf(address(vault)), 2 * ONE_18);
+        assertFalse(factory.paused());
     }
 }
