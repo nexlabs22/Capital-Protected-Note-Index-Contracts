@@ -60,6 +60,9 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public nonceToIssuanceRound;
     mapping(uint256 => uint256) public nonceToRedemptionRound;
     mapping(uint256 => uint256) public issuanceFeeByNonce;
+    mapping(uint256 => uint256) public redemptionFeeByNonce;
+    mapping(uint256 => bool) public issuanceRequestCancelled;
+    mapping(uint256 => bool) public redemptionRequestCancelled;
     mapping(address => uint256) public tokenPendingRebalanceAmount;
     mapping(address => mapping(uint256 => uint256)) public tokenPendingRebalanceAmountByNonce;
 
@@ -174,6 +177,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         issuanceFeeByNonce[nonce] = fee;
     }
 
+    function setRedemptionFeeByNonce(uint256 nonce, uint256 fee) external onlyFactory {
+        redemptionFeeByNonce[nonce] = fee;
+    }
+
     function setIssuanceRoundIdToAddresses(uint256 _roundId, address[] memory addresses) external onlyFactory {
         require(_roundId > 0, "Invalid roundId amount");
         issuanceRoundIdToAddresses[_roundId] = addresses;
@@ -201,6 +208,22 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function setIssuanceRoundActive(uint256 roundId, bool flag) external onlyFactory {
         issuanceRoundActive[roundId] = flag;
+    }
+
+    function setIssuanceRoundToNonce(uint256 nonce, uint256 roundId) external onlyFactory {
+        nonceToIssuanceRound[nonce] = roundId;
+    }
+
+    function setRedemptionRoundToNonce(uint256 nonce, uint256 roundId) external onlyFactory {
+        nonceToRedemptionRound[nonce] = roundId;
+    }
+
+    function setIssuanceRequestCancelled(uint256 nonce, bool value) external onlyFactory {
+        issuanceRequestCancelled[nonce] = value;
+    }
+
+    function setRedemptionRequestCancelled(uint256 nonce, bool value) external onlyFactory {
+        redemptionRequestCancelled[nonce] = value;
     }
 
     function addNonceToIssuanceRound(uint256 roundId, uint256 nonce) external onlyFactory {
@@ -304,14 +327,13 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         emit IssuanceNonceRecorded(roundId, nonce);
     }
 
-    /// @dev Record redemption nonce in both round->nonces and nonce->round
     function recordRedemptionNonce(uint256 roundId, uint256 nonce) external onlyFactory {
         redemptionRoundIdToNonces[roundId].push(nonce);
         nonceToRedemptionRound[nonce] = roundId;
         emit RedemptionNonceRecorded(roundId, nonce);
     }
 
-    function undoIssuance(address account, uint256 amount) external onlyFactory {
+    function undoIssuance(uint256 roundId, address account, uint256 amount) external onlyFactory {
         uint256 round = issuanceRoundId;
 
         uint256 before = issuanceAmountByRoundUser[round][account];
@@ -335,7 +357,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         }
     }
 
-    function undoRedemption(address user, uint256 amount) external onlyFactory {
+    function undoRedemption(uint256 roundId, address user, uint256 amount) external onlyFactory {
         uint256 roundId = redemptionRoundId;
         uint256 before = redemptionAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
@@ -554,6 +576,80 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
             return 0;
         }
         return portfolioValue * 1e18 / totalSupply;
+    }
+
+    // ------------------------------------------------------------------------------
+    function undoIssuanceForRound(uint256 roundId, address user, uint256 amount) external onlyFactory {
+        uint256 before = issuanceAmountByRoundUser[roundId][user];
+        require(amount > 0 && before >= amount, "bad amount");
+
+        issuanceAmountByRoundUser[roundId][user] = before - amount;
+        totalIssuanceByRound[roundId] -= amount;
+
+        if (issuanceAmountByRoundUser[roundId][user] == 0) {
+            _pruneAddressFromIssuance(roundId, user);
+        }
+    }
+
+    // keeps roundIdToAddresses tidy
+    function _pruneAddressFromIssuance(uint256 roundId, address user) internal {
+        address[] storage arr = issuanceRoundIdToAddresses[roundId];
+        for (uint256 i; i < arr.length; ++i) {
+            if (arr[i] == user) {
+                arr[i] = arr[arr.length - 1];
+                arr.pop();
+                break;
+            }
+        }
+        if (arr.length == 0) issuanceRoundActive[roundId] = false;
+    }
+
+    // remove a nonce from the array in O(n)
+    function removeIssuanceNonce(uint256 roundId, uint256 nonce) external onlyFactory {
+        uint256[] storage arr = issuanceRoundIdToNonces[roundId];
+        for (uint256 i; i < arr.length; ++i) {
+            if (arr[i] == nonce) {
+                arr[i] = arr[arr.length - 1];
+                arr.pop();
+                break;
+            }
+        }
+    }
+
+    // --- same trio for Redemption --------------------------------------------------------
+    function undoRedemptionForRound(uint256 roundId, address user, uint256 amount) external onlyFactory {
+        uint256 before = redemptionAmountByRoundUser[roundId][user];
+        require(amount > 0 && before >= amount, "bad amount");
+
+        redemptionAmountByRoundUser[roundId][user] = before - amount;
+        totalRedemptionByRound[roundId] -= amount;
+
+        if (redemptionAmountByRoundUser[roundId][user] == 0) {
+            _pruneAddressFromRedemption(roundId, user);
+        }
+    }
+
+    function _pruneAddressFromRedemption(uint256 roundId, address user) internal {
+        address[] storage arr = redemptionRoundIdToAddresses[roundId];
+        for (uint256 i; i < arr.length; ++i) {
+            if (arr[i] == user) {
+                arr[i] = arr[arr.length - 1];
+                arr.pop();
+                break;
+            }
+        }
+        if (arr.length == 0) redemptionRoundActive[roundId] = false;
+    }
+
+    function removeRedemptionNonce(uint256 roundId, uint256 nonce) external onlyFactory {
+        uint256[] storage arr = redemptionRoundIdToNonces[roundId];
+        for (uint256 i; i < arr.length; ++i) {
+            if (arr[i] == nonce) {
+                arr[i] = arr[arr.length - 1];
+                arr.pop();
+                break;
+            }
+        }
     }
 
     uint256[50] private __gap;

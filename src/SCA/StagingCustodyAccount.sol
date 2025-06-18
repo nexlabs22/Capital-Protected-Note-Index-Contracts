@@ -208,22 +208,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         emit IssuanceRequested(usdcAmountForBond, usdcAmountForRiskAsset, block.timestamp);
     }
 
-    function _distributeIssuance(uint256 roundId, uint256 mintAmt, uint256 totalUsdc)
-        internal
-        returns (uint256 distributed)
-    {
-        address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
-        for (uint256 i; i < users.length; ++i) {
-            address user = users[i];
-            uint256 userAmt = factoryStorage.issuanceAmountByRoundUser(roundId, user);
-            uint256 owed = (mintAmt * userAmt) / totalUsdc;
-            if (owed > 0) {
-                factoryStorage.indexToken().transfer(user, owed);
-                distributed += owed;
-            }
-        }
-    }
-
     function completeIssuance(uint256 roundId, uint256 bondPrice, uint256 riskAssetPrice) external onlyNexBot {
         uint256[] memory nonces = factoryStorage.getIssuanceRoundIdToNonces(roundId);
         require(nonces.length > 0, "No issuance requests");
@@ -249,19 +233,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 mintAmount = factoryStorage.calculateMintAmount(oldValue, newValue);
         if (mintAmount > 0) factoryStorage.indexToken().mint(address(this), mintAmount);
 
-        // address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
         uint256 total = factoryStorage.totalIssuanceByRound(roundId);
         require(total > 0, "Nothing to distribute");
-
-        // uint256 distributed;
-        // for (uint256 i = 0; i < users.length; i++) {
-        //     address user = users[i];
-        //     uint256 owed = (mintAmount * factoryStorage.issuanceAmountByRoundUser(roundId, user)) / total;
-        //     if (owed > 0) {
-        //         factoryStorage.indexToken().transfer(user, owed);
-        //         distributed += owed;
-        //     }
-        // }
 
         uint256 distributed = _distributeIssuance(roundId, mintAmount, total);
 
@@ -272,57 +245,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.settleIssuance(roundId);
         emit IssuanceSettled(roundId, mintAmount, distributed, total, block.timestamp);
-    }
-
-    function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromRiskAsset) external onlyNexBot {
-        uint256[] memory nonces = factoryStorage.getRedemptionRoundIdToNonces(roundId);
-        require(nonces.length > 0, "No redemption requests");
-
-        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
-        uint256 prev = roundId - 1;
-        if (roundId > 1) {
-            require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
-            require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
-        }
-        require(!factoryStorage.redemptionRoundActive(roundId), "Round still active");
-        require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
-
-        uint256 totalIDX = factoryStorage.totalRedemptionByRound(roundId);
-        require(totalIDX > 0, "No tokens to redeem");
-
-        if (usdcFromBond > 0) {
-            factoryStorage.usdc().safeTransferFrom(msg.sender, address(this), usdcFromBond);
-        }
-
-        uint256 totalUSDC = usdcFromBond + usdcFromRiskAsset;
-        require(totalUSDC > 0, "zero USDC received");
-        // if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
-        //     revert RedemptionAmountIsZero();
-        // }
-
-        uint256 feeAmount = FeeCalculation.calculateFee(totalUSDC, factoryStorage.feeRate());
-        uint256 usdcForDistribute = totalUSDC - feeAmount;
-
-        address[] memory users = factoryStorage.addressesInRedemptionRound(roundId);
-        uint256 paid;
-
-        for (uint256 i; i < users.length; ++i) {
-            address user = users[i];
-            uint256 idxShare = factoryStorage.redemptionAmountByRoundUser(roundId, user);
-            uint256 owed = usdcForDistribute * idxShare / totalIDX;
-
-            if (owed > 0) {
-                factoryStorage.usdc().safeTransfer(user, owed);
-                paid += owed;
-            }
-        }
-
-        uint256 dust = usdcForDistribute - paid;
-        if (dust > 0) factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), dust);
-        factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), feeAmount);
-
-        factoryStorage.settleRedemption(roundId);
-        emit RedemptionSettled(roundId, usdcForDistribute, block.timestamp);
     }
 
     function requestRedemption(uint256 roundId, address[] calldata tokenOutPath, uint24[] calldata tokenOutFees)
@@ -382,6 +304,73 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
 
         emit RedemptionRequested(totalIdxThisRound, block.timestamp);
+    }
+
+    function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromRiskAsset) external onlyNexBot {
+        uint256[] memory nonces = factoryStorage.getRedemptionRoundIdToNonces(roundId);
+        require(nonces.length > 0, "No redemption requests");
+
+        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
+            require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
+        }
+        require(!factoryStorage.redemptionRoundActive(roundId), "Round still active");
+        require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
+
+        uint256 totalIDX = factoryStorage.totalRedemptionByRound(roundId);
+        require(totalIDX > 0, "No tokens to redeem");
+
+        if (usdcFromBond > 0) {
+            factoryStorage.usdc().safeTransferFrom(msg.sender, address(this), usdcFromBond);
+        }
+
+        uint256 totalUSDC = usdcFromBond + usdcFromRiskAsset;
+        require(totalUSDC > 0, "zero USDC received");
+        // if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
+        //     revert RedemptionAmountIsZero();
+        // }
+
+        uint256 feeAmount = FeeCalculation.calculateFee(totalUSDC, factoryStorage.feeRate());
+        uint256 usdcForDistribute = totalUSDC - feeAmount;
+
+        address[] memory users = factoryStorage.addressesInRedemptionRound(roundId);
+        uint256 paid;
+
+        for (uint256 i; i < users.length; ++i) {
+            address user = users[i];
+            uint256 idxShare = factoryStorage.redemptionAmountByRoundUser(roundId, user);
+            uint256 owed = usdcForDistribute * idxShare / totalIDX;
+
+            if (owed > 0) {
+                factoryStorage.usdc().safeTransfer(user, owed);
+                paid += owed;
+            }
+        }
+
+        uint256 dust = usdcForDistribute - paid;
+        if (dust > 0) factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), dust);
+        factoryStorage.usdc().safeTransfer(factoryStorage.feeReceiver(), feeAmount);
+
+        factoryStorage.settleRedemption(roundId);
+        emit RedemptionSettled(roundId, usdcForDistribute, block.timestamp);
+    }
+
+    function _distributeIssuance(uint256 roundId, uint256 mintAmt, uint256 totalUsdc)
+        internal
+        returns (uint256 distributed)
+    {
+        address[] memory users = factoryStorage.addressesInIssuanceRound(roundId);
+        for (uint256 i; i < users.length; ++i) {
+            address user = users[i];
+            uint256 userAmt = factoryStorage.issuanceAmountByRoundUser(roundId, user);
+            uint256 owed = (mintAmt * userAmt) / totalUsdc;
+            if (owed > 0) {
+                factoryStorage.indexToken().transfer(user, owed);
+                distributed += owed;
+            }
+        }
     }
 
     function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
