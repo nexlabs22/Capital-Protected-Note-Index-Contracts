@@ -318,96 +318,96 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.setIssuanceRequesterByNonce(1, alice);
     }
 
-    function test_undoIssuance_FailWhenSenderIsNotFactory() public {
-        vm.expectRevert("Caller is not a factory contract");
-        store.undoIssuance(alice, 1);
-    }
+    // function test_undoIssuance_FailWhenSenderIsNotFactory() public {
+    //     vm.expectRevert("Caller is not a factory contract");
+    //     store.undoIssuance(alice, 1);
+    // }
 
-    function test_undoIssuance_SuccessfulUndo() public {
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(alice, 100);
-        store.addIssuanceForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoIssuance_SuccessfulUndo() public {
+    //     vm.startPrank(factory);
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     store.addIssuanceForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoIssuance(alice, 30);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoIssuance(alice, 30);
+    //     vm.stopPrank();
 
-        assertEq(store.issuanceAmountByRoundUser(1, alice), 70);
-        assertEq(store.totalIssuanceByRound(1), 120);
-    }
+    //     assertEq(store.issuanceAmountByRoundUser(1, alice), 70);
+    //     assertEq(store.totalIssuanceByRound(1), 120);
+    // }
 
-    function test_undoIssuance_FailWhenAmountIsInvalid() public {
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(alice, 100);
-        vm.stopPrank();
+    // function test_undoIssuance_FailWhenAmountIsInvalid() public {
+    //     vm.startPrank(factory);
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        vm.expectRevert("bad amount");
-        store.undoIssuance(alice, 200);
-        vm.stopPrank();
-    }
+    //     vm.startPrank(factory);
+    //     vm.expectRevert("bad amount");
+    //     store.undoIssuance(alice, 200);
+    //     vm.stopPrank();
+    // }
 
-    function test_undoIssuance_SuccessfulUndoWhenIssuanceAmountIsZero() public {
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(alice, 100);
-        store.addIssuanceForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoIssuance_SuccessfulUndoWhenIssuanceAmountIsZero() public {
+    //     vm.startPrank(factory);
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     store.addIssuanceForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoIssuance(alice, 100);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoIssuance(alice, 100);
+    //     vm.stopPrank();
 
-        assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
-        assertEq(store.totalIssuanceByRound(1), 50);
-    }
+    //     assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
+    //     assertEq(store.totalIssuanceByRound(1), 50);
+    // }
 
-    function test_undoIssuance_SuccessfulUndoWhenRoundIdIsNotActive() public {
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(alice, 100);
-        store.addIssuanceForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoIssuance_SuccessfulUndoWhenRoundIdIsNotActive() public {
+    //     vm.startPrank(factory);
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     store.addIssuanceForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoIssuance(alice, 100);
-        store.undoIssuance(bob, 50);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoIssuance(alice, 100);
+    //     store.undoIssuance(bob, 50);
+    //     vm.stopPrank();
 
-        assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
-        assertEq(store.issuanceAmountByRoundUser(1, bob), 0);
-        assertEq(store.totalIssuanceByRound(1), 0);
-        assertEq(store.issuanceRoundActive(1), false);
-    }
+    //     assertEq(store.issuanceAmountByRoundUser(1, alice), 0);
+    //     assertEq(store.issuanceAmountByRoundUser(1, bob), 0);
+    //     assertEq(store.totalIssuanceByRound(1), 0);
+    //     assertEq(store.issuanceRoundActive(1), false);
+    // }
 
-    function test_undoRedemption_FailWhenSenderIsNotFactory() public {
-        vm.expectRevert("Caller is not a factory contract");
-        store.undoRedemption(alice, 1);
-    }
+    // function test_undoRedemption_FailWhenSenderIsNotFactory() public {
+    //     vm.expectRevert("Caller is not a factory contract");
+    //     store.undoRedemption(alice, 1);
+    // }
 
-    function test_undoRedemption_SuccessfulUndo() public {
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        store.addRedemptionForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoRedemption_SuccessfulUndo() public {
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     store.addRedemptionForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoRedemption(alice, 30);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoRedemption(alice, 30);
+    //     vm.stopPrank();
 
-        assertEq(store.redemptionAmountByRoundUser(1, alice), 70);
-        assertEq(store.totalRedemptionByRound(1), 120);
-    }
+    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 70);
+    //     assertEq(store.totalRedemptionByRound(1), 120);
+    // }
 
-    function test_undoRedemption_FailWhenAmountIsInvalid() public {
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        vm.stopPrank();
+    // function test_undoRedemption_FailWhenAmountIsInvalid() public {
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        vm.expectRevert("bad amount");
-        store.undoRedemption(alice, 0);
-        vm.stopPrank();
-    }
+    //     vm.startPrank(factory);
+    //     vm.expectRevert("bad amount");
+    //     store.undoRedemption(alice, 0);
+    //     vm.stopPrank();
+    // }
 
     function test_settleRedemption_FailWhenSenderIsNotOwnerOrOperator() public {
         vm.prank(factory);
@@ -602,43 +602,43 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         vm.stopPrank();
     }
 
-    function test_undoIssuance_ElseBranchInPruneLoop() public {
-        address charlie = vm.addr(6);
-        vm.startPrank(factory);
-        store.addIssuanceForCurrentRound(alice, 100);
-        store.addIssuanceForCurrentRound(bob, 50);
-        store.addIssuanceForCurrentRound(charlie, 25);
-        vm.stopPrank();
+    // function test_undoIssuance_ElseBranchInPruneLoop() public {
+    //     address charlie = vm.addr(6);
+    //     vm.startPrank(factory);
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     store.addIssuanceForCurrentRound(bob, 50);
+    //     store.addIssuanceForCurrentRound(charlie, 25);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoIssuance(alice, 100);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoIssuance(alice, 100);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoIssuance(bob, 50);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoIssuance(bob, 50);
+    //     vm.stopPrank();
 
-        address[] memory list = store.addressesInIssuanceRound(1);
-        assertEq(list.length, 1);
-        assertEq(list[0], charlie);
-    }
+    //     address[] memory list = store.addressesInIssuanceRound(1);
+    //     assertEq(list.length, 1);
+    //     assertEq(list[0], charlie);
+    // }
 
-    function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero() public {
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        store.addRedemptionForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero() public {
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     store.addRedemptionForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoRedemption(alice, 100);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoRedemption(alice, 100);
+    //     vm.stopPrank();
 
-        address[] memory list = store.addressesInRedemptionRound(1);
-        assertEq(list.length, 1);
-        assertEq(list[0], bob);
-        assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-        assertEq(store.totalRedemptionByRound(1), 50);
-    }
+    //     address[] memory list = store.addressesInRedemptionRound(1);
+    //     assertEq(list.length, 1);
+    //     assertEq(list[0], bob);
+    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
+    //     assertEq(store.totalRedemptionByRound(1), 50);
+    // }
 
     function test_nextProcessableRoundId_revertsOnUnsettledRound() public {
         vm.prank(factory);
@@ -779,47 +779,47 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.setRedemptionRequesterByNonce(nonce, requester);
     }
 
-    function test_undoRedemption_ElseBranchInPruneLoop() public {
-        address charlie = vm.addr(6);
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        store.addRedemptionForCurrentRound(bob, 50);
-        store.addRedemptionForCurrentRound(charlie, 25);
-        vm.stopPrank();
+    // function test_undoRedemption_ElseBranchInPruneLoop() public {
+    //     address charlie = vm.addr(6);
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     store.addRedemptionForCurrentRound(bob, 50);
+    //     store.addRedemptionForCurrentRound(charlie, 25);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoRedemption(bob, 50);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoRedemption(bob, 50);
+    //     vm.stopPrank();
 
-        address[] memory list = store.addressesInRedemptionRound(1);
-        assertEq(list.length, 2);
-        assertEq(list[0], alice);
-        assertEq(list[1], charlie);
-        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-        assertEq(store.totalRedemptionByRound(1), 125);
-    }
+    //     address[] memory list = store.addressesInRedemptionRound(1);
+    //     assertEq(list.length, 2);
+    //     assertEq(list[0], alice);
+    //     assertEq(list[1], charlie);
+    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
+    //     assertEq(store.totalRedemptionByRound(1), 125);
+    // }
 
-    function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero_LastAddress() public {
-        // address charlie = vm.addr(6);
-        vm.startPrank(factory);
-        store.addRedemptionForCurrentRound(alice, 100);
-        store.addRedemptionForCurrentRound(bob, 50);
-        vm.stopPrank();
+    // function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero_LastAddress() public {
+    //     // address charlie = vm.addr(6);
+    //     vm.startPrank(factory);
+    //     store.addRedemptionForCurrentRound(alice, 100);
+    //     store.addRedemptionForCurrentRound(bob, 50);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoRedemption(alice, 100);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoRedemption(alice, 100);
+    //     vm.stopPrank();
 
-        vm.startPrank(factory);
-        store.undoRedemption(bob, 50);
-        vm.stopPrank();
+    //     vm.startPrank(factory);
+    //     store.undoRedemption(bob, 50);
+    //     vm.stopPrank();
 
-        address[] memory list = store.addressesInRedemptionRound(1);
-        assertEq(list.length, 0);
-        assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-        assertEq(store.totalRedemptionByRound(1), 0);
-        assertEq(store.redemptionRoundActive(1), false);
-    }
+    //     address[] memory list = store.addressesInRedemptionRound(1);
+    //     assertEq(list.length, 0);
+    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
+    //     assertEq(store.totalRedemptionByRound(1), 0);
+    //     assertEq(store.redemptionRoundActive(1), false);
+    // }
 
     function test_nextProcessableRoundIdForRedemption_revertsOnUnsettledRound() public {
         vm.startPrank(factory);

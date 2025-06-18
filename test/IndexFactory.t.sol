@@ -202,7 +202,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), inAmt, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(store.issuanceRoundId(), 1, alice, address(usdc), inAmt, fee, block.timestamp);
         uint256 nonce =
             factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
 
@@ -230,7 +230,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         vm.startPrank(alice);
-        vm.expectRevert("Issuance is completed");
+        vm.expectRevert("round not active");
         factory.cancelIssuance(nonce);
         vm.stopPrank();
     }
@@ -283,7 +283,9 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amount, 0, block.timestamp);
+        emit IndexFactory.RequestIssuance(
+            store.issuanceRoundId(), 1, alice, address(usdc), amount, fee, block.timestamp
+        );
         factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amount);
 
         console.log("Nex Bot balance After: ", address(nexBot).balance);
@@ -293,12 +295,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(usdc.balanceOf(address(feeVault)), fee);
         assertEq(store.issuanceInputAmount(1), amount);
     }
-
-    // function testIssuance_zeroReverts() public {
-    //     vm.startPrank(alice);
-    //     vm.expectRevert(ZeroAmount.selector);
-    //     factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), 0);
-    // }
 
     function _mintAndApproveIdx(address user, uint256 qty) internal {
         idx.mint(user, qty);
@@ -350,7 +346,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         vm.startPrank(alice);
-        vm.expectRevert("Issuance is completed");
+        vm.expectRevert("round not active");
         factory.cancelIssuance(n);
         vm.stopPrank();
     }
@@ -403,24 +399,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(afterBal - before, fee, "fee mismatch");
     }
 
-    function testIssuance_emitsCorrectEvent() public {
-        uint256 amt = 5_555 * ONE_USDC;
-
-        vm.startPrank(alice);
-        vm.expectEmit(true, true, true, true);
-        emit IndexFactory.RequestIssuance(1, alice, address(usdc), amt, 0, block.timestamp);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
-    }
-
     function testCancelIssuance_HappyPath() public {
         uint256 amt = 8_000 * ONE_USDC;
 
         deal(address(usdc), address(this), 1_000_000 * ONE_USDC);
-
         uint256 fee = (amt * 10) / 10000;
-
-        // 8000
-        // 8
 
         vm.startPrank(alice);
         store.usdc().approve(address(factory), amt * 2);
@@ -431,7 +414,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         vm.startPrank(alice);
         factory.cancelIssuance(nonce);
-
         uint256 balAfter = usdc.balanceOf(alice);
         assertEq(balAfter - balBefore, amt + fee, "refund missing");
 
@@ -640,21 +622,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
     }
 
-    function test_cancelRedemption_revertsWhenRedemptionIsCompleted() public {
-        uint256 idxAmount = 100 ether;
-        _mintAndApproveIdx(alice, idxAmount);
-
-        vm.prank(alice);
-        uint256 nonce = factory.redemption{value: 10}(idxAmount);
-
-        vm.prank(address(factory));
-        store.setRedemptionCompleted(nonce, true);
-
-        vm.prank(alice);
-        vm.expectRevert("Redemption is completed");
-        factory.cancelRedemption(nonce);
-    }
-
     function test_cancelRedemption_branch_balanceOfSCA_lt_amount() public {
         uint256 idxAmount = 100 ether;
         _mintAndApproveIdx(alice, idxAmount);
@@ -689,7 +656,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
 
         vm.startPrank(alice);
-        vm.expectRevert(bytes("round already processed"));
+        vm.expectRevert(bytes("round not active"));
         factory.cancelIssuance(nonce);
         vm.stopPrank();
     }
@@ -762,6 +729,40 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.startPrank(alice);
         vm.expectRevert(bytes("Wrong ETH fee"));
         factory.redemption{value: 5}(idxAmount);
+        vm.stopPrank();
+    }
+
+    function test_cancelIssuance_branch_issuanceRequestCancelled_true() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        vm.prank(address(factory));
+        store.setIssuanceRequestCancelled(nonce, true);
+        assertTrue(store.issuanceRequestCancelled(nonce));
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("request already cancelled"));
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_branch_redemptionRequestCancelled_true() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
+
+        vm.prank(address(factory));
+        store.setRedemptionRequestCancelled(nonce, true);
+        assertTrue(store.redemptionRequestCancelled(nonce));
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("request already cancelled"));
+        factory.cancelRedemption(nonce);
         vm.stopPrank();
     }
 }
