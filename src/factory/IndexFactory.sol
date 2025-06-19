@@ -187,6 +187,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         factoryStorage.removeIssuanceNonce(roundId, nonce);
         factoryStorage.setIssuanceCompleted(nonce, true);
+        factoryStorage.setIssuanceRequestCancelled(nonce, true);
         factoryStorage.setIssuanceFeeByNonce(nonce, 0);
         factoryStorage.sca().refund(roundId, requester, amount);
         FeeVault(feeVault).refund(requester, fee);
@@ -245,6 +246,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         factoryStorage.removeRedemptionNonce(roundId, nonce);
         factoryStorage.setRedemptionCompleted(nonce, true);
+        factoryStorage.setRedemptionRequestCancelled(nonce, true);
 
         factoryStorage.sca().rescue(address(factoryStorage.indexToken()), requester, amount);
 

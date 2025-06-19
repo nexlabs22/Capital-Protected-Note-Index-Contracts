@@ -601,7 +601,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 break;
             }
         }
-        if (arr.length == 0) issuanceRoundActive[roundId] = false;
+        // if (arr.length == 0) issuanceRoundActive[roundId] = false;
     }
 
     // remove a nonce from the array in O(n)
@@ -638,7 +638,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 break;
             }
         }
-        if (arr.length == 0) redemptionRoundActive[roundId] = false;
+        // if (arr.length == 0) redemptionRoundActive[roundId] = false;
     }
 
     function removeRedemptionNonce(uint256 roundId, uint256 nonce) external onlyFactory {
