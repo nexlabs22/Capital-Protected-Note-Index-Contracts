@@ -333,53 +333,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         emit RedemptionNonceRecorded(roundId, nonce);
     }
 
-    function undoIssuance(uint256 roundId, address account, uint256 amount) external onlyFactory {
-        uint256 round = issuanceRoundId;
-
-        uint256 before = issuanceAmountByRoundUser[round][account];
-        require(before >= amount && amount > 0, "bad amount");
-
-        issuanceAmountByRoundUser[round][account] = before - amount;
-        totalIssuanceByRound[round] -= amount;
-
-        if (issuanceAmountByRoundUser[round][account] == 0) {
-            address[] storage arr = issuanceRoundIdToAddresses[round];
-            for (uint256 i; i < arr.length; ++i) {
-                if (arr[i] == account) {
-                    arr[i] = arr[arr.length - 1];
-                    arr.pop();
-                    break;
-                }
-            }
-            if (arr.length == 0) {
-                issuanceRoundActive[round] = false;
-            }
-        }
-    }
-
-    function undoRedemption(uint256 roundId, address user, uint256 amount) external onlyFactory {
-        uint256 roundId = redemptionRoundId;
-        uint256 before = redemptionAmountByRoundUser[roundId][user];
-        require(amount > 0 && before >= amount, "bad amount");
-
-        redemptionAmountByRoundUser[roundId][user] = before - amount;
-        totalRedemptionByRound[roundId] -= amount;
-
-        if (redemptionAmountByRoundUser[roundId][user] == 0) {
-            address[] storage arr = redemptionRoundIdToAddresses[roundId];
-            for (uint256 i; i < arr.length; ++i) {
-                if (arr[i] == user) {
-                    arr[i] = arr[arr.length - 1];
-                    arr.pop();
-                    break;
-                }
-            }
-            if (arr.length == 0) {
-                redemptionRoundActive[roundId] = false;
-            }
-        }
-    }
-
     function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
         address[] storage list = issuanceRoundIdToAddresses[roundId];
         for (uint256 i = 0; i < list.length; ++i) {
@@ -570,7 +523,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     function getIndexTokenPrice(uint256 bondPrice, uint256 riskAssetPrice) public view returns (uint256) {
         uint256 totalSupply = indexToken.totalSupply();
-        // uint256 portfolioValue = getPortfolioValue(bondPrice, riskAssetPrice);
         uint256 portfolioValue = getPortfolioValue(bondPrice, riskAssetPrice);
         if (totalSupply == 0) {
             return 0;
@@ -578,20 +530,22 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         return portfolioValue * 1e18 / totalSupply;
     }
 
-    // ------------------------------------------------------------------------------
-    function undoIssuanceForRound(uint256 roundId, address user, uint256 amount) external onlyFactory {
+    function undoIssuanceForRound(uint256 roundId, uint256 nonce, address user, uint256 amount) external onlyFactory {
         uint256 before = issuanceAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
 
         issuanceAmountByRoundUser[roundId][user] = before - amount;
         totalIssuanceByRound[roundId] -= amount;
+        issuanceInputAmount[nonce] = 0;
+        issuanceFeeByNonce[nonce] = 0;
+        issuanceRequesterByNonce[nonce] = address(0);
+        issuanceRequestCancelled[nonce] = true;
 
         if (issuanceAmountByRoundUser[roundId][user] == 0) {
             _pruneAddressFromIssuance(roundId, user);
         }
     }
 
-    // keeps roundIdToAddresses tidy
     function _pruneAddressFromIssuance(uint256 roundId, address user) internal {
         address[] storage arr = issuanceRoundIdToAddresses[roundId];
         for (uint256 i; i < arr.length; ++i) {
@@ -604,7 +558,6 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         // if (arr.length == 0) issuanceRoundActive[roundId] = false;
     }
 
-    // remove a nonce from the array in O(n)
     function removeIssuanceNonce(uint256 roundId, uint256 nonce) external onlyFactory {
         uint256[] storage arr = issuanceRoundIdToNonces[roundId];
         for (uint256 i; i < arr.length; ++i) {
@@ -616,13 +569,18 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
         }
     }
 
-    // --- same trio for Redemption --------------------------------------------------------
-    function undoRedemptionForRound(uint256 roundId, address user, uint256 amount) external onlyFactory {
+    function undoRedemptionForRound(uint256 roundId, uint256 nonce, address user, uint256 amount)
+        external
+        onlyFactory
+    {
         uint256 before = redemptionAmountByRoundUser[roundId][user];
         require(amount > 0 && before >= amount, "bad amount");
 
         redemptionAmountByRoundUser[roundId][user] = before - amount;
         totalRedemptionByRound[roundId] -= amount;
+        redemptionInputAmount[nonce] = 0;
+        redemptionRequesterByNonce[nonce] = address(0);
+        redemptionRequestCancelled[nonce] = true;
 
         if (redemptionAmountByRoundUser[roundId][user] == 0) {
             _pruneAddressFromRedemption(roundId, user);

@@ -162,9 +162,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         }
         require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
-        // require(_allPreviousRoundsSettled(roundId), "A previous round is still unsettled");
 
-        // factoryStorage.setIssuanceRoundActive(roundId, false);
         uint256 balance = factoryStorage.usdc().balanceOf(address(this));
         require(balance > 0, "USDC Balance is Zero!");
 
@@ -190,7 +188,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             uint256 fee = factoryStorage.getIssuanceFee(
                 address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForRiskAsset
             );
-            // require(msg.value == fee, "SCA: wrong ETH fee");
             require(msg.value >= fee, "SCA: Insufficient ETH fee");
             issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
         } else {
@@ -203,7 +200,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.setIssuanceRoundActive(roundId, false);
         factoryStorage.indexFactory().increaseCurrentRoundId();
-        factoryStorage.setIssuanceRoundActive(factoryStorage.issuanceRoundId(), true);
 
         emit IssuanceRequested(usdcAmountForBond, usdcAmountForRiskAsset, block.timestamp);
     }
@@ -272,7 +268,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 supplyBefore = factoryStorage.indexToken().totalSupply();
         require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
         uint256 pct1e18 = (totalIdxThisRound * 1e18) / supplyBefore;
-        // uint256 pct1e18 = totalIdxThisRound * 1e18 / supplyBefore;
 
         uint256 currentList = factoryStorage.functionsOracle().totalCurrentList();
         for (uint256 i; i < currentList; ++i) {
@@ -301,7 +296,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         factoryStorage.indexToken().burn(address(this), totalIdxThisRound);
         factoryStorage.increaseRedemptionRoundId();
-        factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), true);
+        factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), false);
 
         emit RedemptionRequested(totalIdxThisRound, block.timestamp);
     }
@@ -328,9 +323,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
 
         uint256 totalUSDC = usdcFromBond + usdcFromRiskAsset;
         require(totalUSDC > 0, "zero USDC received");
-        // if (factoryStorage.totalRedemptionByRound(roundId) == 0) {
-        //     revert RedemptionAmountIsZero();
-        // }
 
         uint256 feeAmount = FeeCalculation.calculateFee(totalUSDC, factoryStorage.feeRate());
         uint256 usdcForDistribute = totalUSDC - feeAmount;

@@ -164,8 +164,9 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function cancelIssuance(uint256 nonce) external whenNotPaused nonReentrant {
-        // require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
         require(!factoryStorage.issuanceRequestCancelled(nonce), "request already cancelled");
+        // require(factoryStorage.issuanceInputAmount(nonce) > 0, "No amount for refund!");
+
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
 
@@ -183,7 +184,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
             IERC20(factoryStorage.usdc()).balanceOf(address(factoryStorage.sca())) >= amount, "USDC already deployed"
         );
 
-        factoryStorage.undoIssuanceForRound(roundId, requester, amount);
+        factoryStorage.undoIssuanceForRound(roundId, nonce, requester, amount);
 
         factoryStorage.removeIssuanceNonce(roundId, nonce);
         factoryStorage.setIssuanceCompleted(nonce, true);
@@ -192,44 +193,12 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         factoryStorage.sca().refund(roundId, requester, amount);
         FeeVault(feeVault).refund(requester, fee);
 
-        // emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
-
         emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
     }
-    // function cancelIssuance(uint256 nonce) external whenNotPaused nonReentrant {
-    //     // require(!factoryStorage.issuanceIsCompleted(nonce), "Issuance is completed");
-    //     require(!factoryStorage.issuanceRequestCancelled(nonce), "request already cancelled");
-    //     address requester = factoryStorage.issuanceRequesterByNonce(nonce);
-    //     require(msg.sender == requester, "Only requester can cancel");
-
-    //     uint256 amount = factoryStorage.issuanceInputAmount(nonce);
-    //     uint256 fee = factoryStorage.issuanceFeeByNonce(nonce);
-    //     require(amount > 0, "nothing to refund");
-
-    //     // uint256 roundId = factoryStorage.issuanceRoundId();
-    //     // require(factoryStorage.issuanceRoundActive(roundId), "round already processed");
-
-    //     uint256 roundId = factoryStorage.nonceToIssuanceRound(nonce);
-    //     require(factoryStorage.issuanceRoundActive(roundId), "round not active");
-
-    //     require(
-    //         IERC20(factoryStorage.usdc()).balanceOf(address(factoryStorage.sca())) >= amount, "USDC already deployed"
-    //     );
-
-    //     factoryStorage.undoIssuance(roundId, requester, amount);
-    //     delete factoryStorage.issuanceInputAmount(nonce);
-    //     delete factoryStorage.issuanceFeeByNonce(nonce);
-    //     delete factoryStorage.issuanceRequesterByNonce(nonce);
-    //     factoryStorage.setIssuanceRequestCancelled(nonce, true);
-    //     factoryStorage.setIssuanceFeeByNonce(nonce, 0);
-    //     factoryStorage.sca().refund(roundId, requester, amount);
-    //     FeeVault(feeVault).refund(requester, fee);
-
-    //     emit CancelIssuanceCompleted(nonce, requester, address(factoryStorage.usdc()), amount + fee, 0, block.timestamp);
-    // }
 
     function cancelRedemption(uint256 nonce) external whenNotPaused nonReentrant {
         require(!factoryStorage.redemptionRequestCancelled(nonce), "request already cancelled");
+        // require(factoryStorage.redemptionInputAmount(nonce) > 0, "No amount for refund!");
 
         address requester = factoryStorage.redemptionRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
@@ -242,7 +211,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
 
         require(factoryStorage.indexToken().balanceOf(address(factoryStorage.sca())) >= amount, "IDX already deployed");
 
-        factoryStorage.undoRedemptionForRound(roundId, requester, amount);
+        factoryStorage.undoRedemptionForRound(roundId, nonce, requester, amount);
 
         factoryStorage.removeRedemptionNonce(roundId, nonce);
         factoryStorage.setRedemptionCompleted(nonce, true);
@@ -254,36 +223,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
             nonce, requester, address(factoryStorage.indexToken()), amount, 0, block.timestamp
         );
     }
-    // function cancelRedemption(uint256 nonce) external whenNotPaused nonReentrant {
-    //     // require(!factoryStorage.redemptionIsCompleted(nonce), "Redemption is completed");
-    //     require(!factoryStorage.redemptionRequestCancelled(nonce), "request already cancelled");
-
-    //     address requester = factoryStorage.redemptionRequesterByNonce(nonce);
-    //     require(msg.sender == requester, "Only requester can cancel");
-
-    //     uint256 amount = factoryStorage.redemptionInputAmount(nonce);
-    //     require(amount > 0, "nothing to refund");
-
-    //     // uint256 roundId = factoryStorage.redemptionRoundId();
-    //     // require(factoryStorage.redemptionRoundActive(roundId), "round already processed");
-    //     uint256 roundId = factoryStorage.nonceToRedemptionRound(nonce);
-    //     require(factoryStorage.redemptionRoundActive(roundId), "round not active");
-
-    //     require(factoryStorage.indexToken().balanceOf(address(factoryStorage.sca())) >= amount, "IDX already deployed");
-
-    //     // factoryStorage.undoRedemption(requester, amount);
-    //     // factoryStorage.setRedemptionCompleted(nonce, true);
-    //     factoryStorage.undoRedemption(roundId, requester, amount);
-    //     delete factoryStorage.redemptionInputAmount(nonce);
-    //     delete factoryStorage.redemptionRequesterByNonce(nonce);
-    //     factoryStorage.setRedemptionRequestCancelled(nonce, true);
-
-    //     factoryStorage.sca().rescue(address(factoryStorage.indexToken()), requester, amount);
-
-    //     emit CancelRedemptionCompleted(
-    //         nonce, requester, address(factoryStorage.indexToken()), amount, 0, block.timestamp
-    //     );
-    // }
 
     /**
      * @dev Pauses the contract.
