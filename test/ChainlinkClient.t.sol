@@ -2,7 +2,7 @@
 pragma solidity ^0.8.7;
 
 import "forge-std/Test.sol";
-import "../src/helpers/ChainlinkClient.sol";
+import "../src/chainlink/ChainlinkClient.sol";
 import "../src/helpers/MockApiOracle.sol";
 import "../src/helpers/LinkToken.sol";
 import "@chainlink/contracts/src/v0.8/operatorforwarder/Chainlink.sol";
