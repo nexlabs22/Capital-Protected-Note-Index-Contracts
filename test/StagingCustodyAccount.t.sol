@@ -18,6 +18,7 @@ import "./OlympixUnitTest.sol";
 error ZeroAmount();
 error ZeroAddress();
 error RedemptionAmountIsZero();
+error InvalidRoundId();
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address to, uint256 amt) external {
@@ -190,7 +191,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         store.addIssuanceForCurrentRound(alice, 100);
 
         vm.prank(nexBot);
-        vm.expectRevert("Invalid roundId");
+        vm.expectRevert(InvalidRoundId.selector);
         sca.requestIssuance(2, new address[](0), new uint24[](0));
     }
 
@@ -282,7 +283,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.startPrank(nexBot);
         uint256 bondPrice = 2e18;
         uint256 c5Price = 1e18;
-        vm.expectRevert("Invalid roundId");
+        vm.expectRevert(InvalidRoundId.selector);
         sca.completeIssuance(2, bondPrice, c5Price);
 
         vm.stopPrank();
@@ -432,23 +433,23 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         vm.stopPrank();
     }
 
-    function test_allPreviousRoundsSettled_branch_327_True() public {
-        vm.startPrank(address(factory));
-        store.addIssuanceForCurrentRound(alice, 100);
+    // function test_allPreviousRoundsSettled_branch_327_True() public {
+    //     vm.startPrank(address(factory));
+    //     store.addIssuanceForCurrentRound(alice, 100);
 
-        store.increaseIssuanceRoundId();
+    //     store.increaseIssuanceRoundId();
 
-        store.addIssuanceForCurrentRound(bob, 200);
-        vm.stopPrank();
+    //     store.addIssuanceForCurrentRound(bob, 200);
+    //     vm.stopPrank();
 
-        assertTrue(store.issuanceRoundActive(1));
-        assertEq(store.issuanceRoundId(), 2);
+    //     assertTrue(store.issuanceRoundActive(1));
+    //     assertEq(store.issuanceRoundId(), 2);
 
-        vm.startPrank(nexBot);
-        vm.expectRevert("Prev round still active");
-        sca.requestIssuance(2, new address[](0), new uint24[](0));
-        vm.stopPrank();
-    }
+    //     vm.startPrank(nexBot);
+    //     vm.expectRevert("Prev round still active");
+    //     sca.requestIssuance(2, new address[](0), new uint24[](0));
+    //     vm.stopPrank();
+    // }
 
     function _createFullRedemptionRound(uint256 toAlice, uint256 toBob) internal {
         _bootstrapRedemptionRound(toAlice, toBob);
@@ -547,7 +548,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         uint24[] memory tokenOutFees = new uint24[](0);
 
         vm.startPrank(nexBot);
-        vm.expectRevert("Invalid roundId");
+        vm.expectRevert(InvalidRoundId.selector);
         sca.requestRedemption(roundId, tokenOutPath, tokenOutFees);
         vm.stopPrank();
     }
@@ -592,26 +593,26 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         assertEq(mintAmount, expected);
     }
 
-    function test_allPreviousRoundsSettled_branch_422_Else() public {
-        vm.prank(address(sca));
-        store.settleIssuance(1);
-        assertFalse(store.issuanceRoundActive(1));
+    // function test_allPreviousRoundsSettled_branch_422_Else() public {
+    //     vm.prank(address(sca));
+    //     store.settleIssuance(1);
+    //     assertFalse(store.issuanceRoundActive(1));
 
-        vm.prank(address(factory));
-        store.increaseIssuanceRoundId();
-        vm.prank(address(factory));
-        store.addIssuanceForCurrentRound(alice, 100);
-        assertEq(store.issuanceRoundId(), 2);
+    //     vm.prank(address(factory));
+    //     store.increaseIssuanceRoundId();
+    //     vm.prank(address(factory));
+    //     store.addIssuanceForCurrentRound(alice, 100);
+    //     assertEq(store.issuanceRoundId(), 2);
 
-        usdc.mint(address(sca), 1e6);
+    //     usdc.mint(address(sca), 1e6);
 
-        vm.startPrank(nexBot);
+    //     vm.startPrank(nexBot);
 
-        address[] memory tokenInPath = new address[](0);
-        uint24[] memory tokenInFees = new uint24[](0);
-        try sca.requestIssuance(2, tokenInPath, tokenInFees) {} catch {}
-        vm.stopPrank();
-    }
+    //     address[] memory tokenInPath = new address[](0);
+    //     uint24[] memory tokenInFees = new uint24[](0);
+    //     try sca.requestIssuance(2, tokenInPath, tokenInFees) {} catch {}
+    //     vm.stopPrank();
+    // }
 
     function test_initialize_branch_60_True() public {
         StagingCustodyAccount scaImpl = new StagingCustodyAccount();

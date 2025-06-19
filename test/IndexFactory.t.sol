@@ -20,6 +20,9 @@ import {FeeVault} from "../src/vault/FeeVault.sol";
 import {OlympixUnitTest} from "./OlympixUnitTest.sol";
 
 error ZeroAmount();
+error OrderAlreadyCancelled();
+error WrongETHAmount();
+error InvalidRoundId();
 
 contract MockUSDC is ERC20("USD Coin", "USDC") {
     function mint(address t, uint256 a) external {
@@ -728,7 +731,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, idxAmount);
 
         vm.startPrank(alice);
-        vm.expectRevert(bytes("Wrong ETH fee"));
+        // vm.expectRevert(bytes("Wrong ETH fee"));
+        vm.expectRevert(WrongETHAmount.selector);
         factory.redemption{value: 5}(idxAmount);
         vm.stopPrank();
     }
@@ -745,7 +749,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.issuanceRequestCancelled(nonce));
 
         vm.startPrank(alice);
-        vm.expectRevert(bytes("request already cancelled"));
+        // vm.expectRevert(bytes("request already cancelled"));
+        vm.expectRevert(OrderAlreadyCancelled.selector);
         factory.cancelIssuance(nonce);
         vm.stopPrank();
     }
@@ -762,7 +767,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.redemptionRequestCancelled(nonce));
 
         vm.startPrank(alice);
-        vm.expectRevert(bytes("request already cancelled"));
+        // vm.expectRevert(bytes("request already cancelled"));
+        vm.expectRevert(OrderAlreadyCancelled.selector);
         factory.cancelRedemption(nonce);
         vm.stopPrank();
     }
