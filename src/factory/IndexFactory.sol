@@ -17,6 +17,8 @@ import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
 import {FeeVault} from "../vault/FeeVault.sol";
 
 error ZeroAmount();
+error WrongETHAmount();
+error OrderAlreadyCancelled();
 
 contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
@@ -100,7 +102,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     ) public payable whenNotPaused nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
-        require(msg.value == ethFee, "Wrong ETH fee");
+        if (msg.value != ethFee) revert WrongETHAmount();
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -135,7 +137,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     function redemption(uint256 _amount) external payable whenNotPaused nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getRedemptionFee(_amount);
-        require(msg.value == ethFee, "Wrong ETH fee");
+        if (msg.value != ethFee) revert WrongETHAmount();
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -164,8 +166,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function cancelIssuance(uint256 nonce) external whenNotPaused nonReentrant {
-        require(!factoryStorage.issuanceRequestCancelled(nonce), "request already cancelled");
-        // require(factoryStorage.issuanceInputAmount(nonce) > 0, "No amount for refund!");
+        // require(!factoryStorage.issuanceRequestCancelled(nonce), "request already cancelled");
+        if (factoryStorage.issuanceRequestCancelled(nonce)) revert OrderAlreadyCancelled();
 
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");
@@ -197,8 +199,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     }
 
     function cancelRedemption(uint256 nonce) external whenNotPaused nonReentrant {
-        require(!factoryStorage.redemptionRequestCancelled(nonce), "request already cancelled");
-        // require(factoryStorage.redemptionInputAmount(nonce) > 0, "No amount for refund!");
+        if (factoryStorage.redemptionRequestCancelled(nonce)) revert OrderAlreadyCancelled();
 
         address requester = factoryStorage.redemptionRequesterByNonce(nonce);
         require(msg.sender == requester, "Only requester can cancel");

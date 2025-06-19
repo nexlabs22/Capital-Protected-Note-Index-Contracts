@@ -17,6 +17,8 @@ import {Vault} from "../vault/Vault.sol";
 
 error ZeroAmount();
 error ZeroAddress();
+error InvalidRoundId();
+error WrongETHAmount();
 error RedemptionAmountIsZero();
 
 contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgradeable {
@@ -128,7 +130,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
     {
         uint256 expected =
             factoryStorage.getIssuanceFee(address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount);
-        require(msg.value == expected, "Wrong ETH fee");
+        if (msg.value < expected) revert WrongETHAmount();
+        // require(msg.value == expected, "Wrong ETH fee");
         IRiskAssetFactory(riskAssetFactoryAddress).issuanceIndexTokens{value: msg.value}(
             address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
@@ -142,7 +145,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint24[] memory _tokenOutFees
     ) public payable onlyOwnerOrOperator {
         uint256 expected = factoryStorage.getRedemptionFee(amountIn);
-        require(msg.value == expected, "Wrong ETH fee");
+        if (msg.value < expected) revert WrongETHAmount();
         IRiskAssetFactory(riskAssetFactoryAddress).redemption{value: msg.value}(
             amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
         );
@@ -154,7 +157,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         payable
         onlyOwnerOrOperator
     {
-        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        // require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        if (roundId < 1 || roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
             require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
@@ -188,7 +192,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
             uint256 fee = factoryStorage.getIssuanceFee(
                 address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForRiskAsset
             );
-            require(msg.value >= fee, "SCA: Insufficient ETH fee");
+            // require(msg.value >= fee, "SCA: Insufficient ETH fee");
+            if (msg.value < fee) revert WrongETHAmount();
             issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
         } else {
             require(msg.value == 0, "SCA: unexpected ETH");
@@ -208,8 +213,11 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256[] memory nonces = factoryStorage.getIssuanceRoundIdToNonces(roundId);
         require(nonces.length > 0, "No issuance requests");
 
-        require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
-        require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        // require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        // require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
+        if (roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
+        if (roundId < 1 || roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
+        // if (roundId < 1 && roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
             require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
@@ -249,7 +257,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         nonReentrant
         onlyOwnerOrOperator
     {
-        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
+        if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
             require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
@@ -290,7 +300,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256 riskAssetAmount = IERC20(address(factoryStorage.indexToken())).balanceOf(address(this));
         if (riskAssetAmount > 0) {
             uint256 fee = factoryStorage.getRedemptionFee(riskAssetAmount);
-            require(msg.value == fee, "SCA: wrong ETH fee");
+            if (msg.value < fee) revert WrongETHAmount();
             redemptionRiskAsset(riskAssetAmount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
         }
 
@@ -305,7 +315,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         uint256[] memory nonces = factoryStorage.getRedemptionRoundIdToNonces(roundId);
         require(nonces.length > 0, "No redemption requests");
 
-        require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
+        if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
             require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
@@ -365,13 +377,13 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuard, OwnableUpgrade
         }
     }
 
-    function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
-        if (roundId <= 1) return true;
-        for (uint256 i = 1; i < roundId; ++i) {
-            if (factoryStorage.issuanceRoundActive(i)) {
-                return false;
-            }
-        }
-        return true;
-    }
+    // function _allPreviousRoundsSettled(uint256 roundId) internal view returns (bool) {
+    //     if (roundId <= 1) return true;
+    //     for (uint256 i = 1; i < roundId; ++i) {
+    //         if (factoryStorage.issuanceRoundActive(i)) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 }
