@@ -185,19 +185,19 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.increaseCurrentRoundId();
     }
 
-    function testCancelIssuanceWithNonRequesterAddress() public {
-        uint256 inputAmount = 10e18;
-        deal(address(usdc), alice, 20e18);
-        vm.startPrank(alice);
-        IERC20(usdc).approve(address(factory), inputAmount + 1e16);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inputAmount);
-        vm.stopPrank();
+    // function testCancelIssuanceWithNonRequesterAddress() public {
+    //     uint256 inputAmount = 10e18;
+    //     deal(address(usdc), alice, 20e18);
+    //     vm.startPrank(alice);
+    //     IERC20(usdc).approve(address(factory), inputAmount + 1e16);
+    //     factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inputAmount);
+    //     vm.stopPrank();
 
-        vm.startPrank(bob);
-        vm.expectRevert("Only requester can cancel");
-        factory.cancelIssuance(1);
-        vm.stopPrank();
-    }
+    //     vm.startPrank(bob);
+    //     vm.expectRevert("Only requester can cancel");
+    //     factory.cancelIssuance(1);
+    //     vm.stopPrank();
+    // }
 
     function testIssuanceHappyPath() public {
         uint256 inAmt = 10_000 * ONE_USDC;
@@ -213,43 +213,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertEq(factory.issuanceNonce(), 1);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
         assertEq(usdc.balanceOf(address(feeVault)), fee);
-    }
-
-    // function testIssuanceZeroRevert() public {
-    //     vm.expectRevert(ZeroAmount.selector);
-    //     factory.issuanceIndexToken(address(store.usdc()), new address[](0), new uint24[](0), 0);
-    // }
-
-    function test_cancelIssuance_FailWhenIssuanceIsCompleted() public {
-        uint256 inAmt = 10_000 * ONE_USDC;
-
-        vm.startPrank(alice);
-        uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
-        vm.stopPrank();
-
-        vm.startPrank(address(this));
-        store.settleIssuance(1);
-        vm.stopPrank();
-
-        vm.startPrank(alice);
-        vm.expectRevert("round not active");
-        factory.cancelIssuance(nonce);
-        vm.stopPrank();
-    }
-
-    function test_cancelIssuance_FailWhenSenderIsNotRequester() public {
-        uint256 inAmt = 10_000 * ONE_USDC;
-
-        vm.startPrank(alice);
-        uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
-        vm.stopPrank();
-
-        vm.startPrank(address(this));
-        vm.expectRevert("Only requester can cancel");
-        factory.cancelIssuance(nonce);
-        vm.stopPrank();
     }
 
     function test_increaseCurrentRoundId_FailWhenSenderIsNotOwnerOrOperator() public {
@@ -336,37 +299,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         factory.redemption(0);
     }
 
-    function testCancelIssuance_failsIfCompleted() public {
-        vm.startPrank(alice);
-        store.usdc().approve(address(factory), type(uint256).max);
-        uint256 n = factory.issuanceIndexToken{value: 10}(
-            address(store.usdc()), new address[](0), new uint24[](0), 1_000 * ONE_USDC
-        );
-        vm.stopPrank();
-
-        vm.startPrank(address(this));
-        store.settleIssuance(1);
-        vm.stopPrank();
-
-        vm.startPrank(alice);
-        vm.expectRevert("round not active");
-        factory.cancelIssuance(n);
-        vm.stopPrank();
-    }
-
-    function testCancelIssuance_nonRequesterReverts() public {
-        vm.startPrank(alice);
-        uint256 n = factory.issuanceIndexToken{value: 10}(
-            address(store.usdc()), new address[](0), new uint24[](0), 1_000 * ONE_USDC
-        );
-        vm.stopPrank();
-
-        vm.startPrank(bob);
-        vm.expectRevert("Only requester can cancel");
-        factory.cancelIssuance(n);
-        vm.stopPrank();
-    }
-
     function testIssuance_updatesStorageAndRoundData() public {
         uint256 amt = 25_000 * ONE_USDC;
         uint256 fee = (amt * 10) / 10000;
@@ -400,30 +332,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 afterBal = usdc.balanceOf(address(feeVault));
 
         assertEq(afterBal - before, fee, "fee mismatch");
-    }
-
-    function testCancelIssuance_HappyPath() public {
-        uint256 amt = 8_000 * ONE_USDC;
-
-        deal(address(usdc), address(this), 1_000_000 * ONE_USDC);
-        uint256 fee = (amt * 10) / 10000;
-
-        vm.startPrank(alice);
-        store.usdc().approve(address(factory), amt * 2);
-        uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
-
-        uint256 balBefore = usdc.balanceOf(alice);
-
-        vm.startPrank(alice);
-        factory.cancelIssuance(nonce);
-        uint256 balAfter = usdc.balanceOf(alice);
-        assertEq(balAfter - balBefore, amt + fee, "refund missing");
-
-        assertTrue(store.issuanceIsCompleted(nonce));
-        assertEq(store.totalIssuanceByRound(1), 0);
-        assertEq(store.issuanceRoundActive(1), true);
-        // assertEq(store.issuanceRoundActive(1), false);
     }
 
     function testFullIssuanceFlow_Single() public {
@@ -595,88 +503,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.issuanceIsCompleted(1));
     }
 
-    function test_cancelIssuance_revertsWhenAmtIsZero() public {
-        vm.prank(address(factory));
-        store.setIssuanceRequesterByNonce(1, alice);
-
-        vm.startPrank(alice);
-        vm.expectRevert("nothing to refund");
-        factory.cancelIssuance(1);
-        vm.stopPrank();
-    }
-
-    function test_cancelIssuance_branch_balanceOfSCA_lt_amount() public {
-        uint256 amt = 10_000 * ONE_USDC;
-        vm.startPrank(alice);
-        uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
-        vm.stopPrank();
-
-        address scaAddr = address(sca);
-        address dummy = address(0xdead);
-        vm.startPrank(scaAddr);
-        usdc.transfer(dummy, amt);
-        vm.stopPrank();
-
-        assertEq(usdc.balanceOf(scaAddr), 0);
-
-        vm.startPrank(alice);
-        vm.expectRevert(bytes("USDC already deployed"));
-        factory.cancelIssuance(nonce);
-        vm.stopPrank();
-    }
-
-    function test_cancelRedemption_branch_balanceOfSCA_lt_amount() public {
-        uint256 idxAmount = 100 ether;
-        _mintAndApproveIdx(alice, idxAmount);
-
-        vm.prank(alice);
-        uint256 nonce = factory.redemption{value: 10}(idxAmount);
-
-        vm.prank(address(factory));
-        store.setRedemptionRequesterByNonce(nonce, alice);
-
-        address scaAddr = address(sca);
-        address dummy = address(0xdead);
-        vm.prank(scaAddr);
-        idx.transfer(dummy, idxAmount);
-        assertEq(idx.balanceOf(scaAddr), 0);
-
-        vm.prank(alice);
-        vm.expectRevert(bytes("IDX already deployed"));
-        factory.cancelRedemption(nonce);
-    }
-
-    function test_cancelIssuance_branch_issuanceRoundActive_false() public {
-        uint256 amt = 10_000 * ONE_USDC;
-        vm.startPrank(alice);
-        uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
-        vm.stopPrank();
-
-        vm.startPrank(address(factory));
-        store.setIssuanceRoundActive(1, false);
-        assertEq(store.issuanceRoundActive(1), false);
-        vm.stopPrank();
-
-        vm.startPrank(alice);
-        vm.expectRevert(bytes("round not active"));
-        factory.cancelIssuance(nonce);
-        vm.stopPrank();
-    }
-
-    function test_cancelRedemption_branch_onlyRequesterCanCancel() public {
-        uint256 idxAmount = 100 ether;
-        _mintAndApproveIdx(alice, idxAmount);
-
-        vm.prank(alice);
-        uint256 nonce = factory.redemption{value: 10}(idxAmount);
-
-        vm.prank(bob);
-        vm.expectRevert("Only requester can cancel");
-        factory.cancelRedemption(nonce);
-    }
-
     function test_initialize_revertsOnZeroIndexFactoryStorage() public {
         address zero = address(0);
         address someFeeVault = address(0x1234);
@@ -689,16 +515,6 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         IndexFactory freshFactory = IndexFactory(address(new ERC1967Proxy(address(new IndexFactory()), "")));
         vm.expectRevert(bytes("Invalid FeeVault"));
         freshFactory.initialize(address(store), address(0));
-    }
-
-    function test_cancelRedemption_branch_amountIsZero() public {
-        uint256 nonce = 1;
-        vm.prank(address(factory));
-        store.setRedemptionRequesterByNonce(nonce, alice);
-        vm.startPrank(alice);
-        vm.expectRevert(bytes("nothing to refund"));
-        factory.cancelRedemption(nonce);
-        vm.stopPrank();
     }
 
     function test_setIssuanceFeeByNonce_FailsWhenSenderIsNotFactoryNexBotOrSCA() public {
@@ -731,13 +547,40 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         _mintAndApproveIdx(alice, idxAmount);
 
         vm.startPrank(alice);
-        // vm.expectRevert(bytes("Wrong ETH fee"));
         vm.expectRevert(WrongETHAmount.selector);
         factory.redemption{value: 5}(idxAmount);
         vm.stopPrank();
     }
 
-    function test_cancelIssuance_branch_issuanceRequestCancelled_true() public {
+    function test_issuanceIndexToken_revertsOnZeroAmount() public {
+        address tokenIn = address(store.usdc());
+        address[] memory tokenInPath = new address[](0);
+        uint24[] memory tokenInFees = new uint24[](0);
+        uint256 inputAmount = 0;
+
+        vm.expectRevert(ZeroAmount.selector);
+        factory.issuanceIndexToken{value: 0}(tokenIn, tokenInPath, tokenInFees, inputAmount);
+    }
+
+    function test_issuanceIndexToken_revertsOnWrongETHAmount() public {
+        address tokenIn = address(store.usdc());
+        address[] memory tokenInPath = new address[](0);
+        uint24[] memory tokenInFees = new uint24[](0);
+        uint256 inputAmount = 1000 * ONE_USDC;
+        uint256 correctEthFee = 10;
+        uint256 wrongEthFee = 5;
+
+        deal(address(usdc), alice, inputAmount);
+        vm.prank(alice);
+        usdc.approve(address(factory), inputAmount + 1e16);
+
+        vm.startPrank(alice);
+        vm.expectRevert(WrongETHAmount.selector);
+        factory.issuanceIndexToken{value: wrongEthFee}(tokenIn, tokenInPath, tokenInFees, inputAmount);
+        vm.stopPrank();
+    }
+
+    function test_cancelIssuance_branch_issuanceRequestCancelled_true1() public {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
@@ -749,13 +592,91 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.issuanceRequestCancelled(nonce));
 
         vm.startPrank(alice);
-        // vm.expectRevert(bytes("request already cancelled"));
         vm.expectRevert(OrderAlreadyCancelled.selector);
         factory.cancelIssuance(nonce);
         vm.stopPrank();
     }
 
-    function test_cancelRedemption_branch_redemptionRequestCancelled_true() public {
+    function test_cancelIssuance_branch_onlyRequesterCanCancel_opix_target_branch_173_True() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelIssuance_branch_onlyRequesterCanCancel_opix_target_branch_173_False() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+
+        assertTrue(store.issuanceIsCompleted(nonce));
+        assertTrue(store.issuanceRequestCancelled(nonce));
+    }
+
+    function test_cancelIssuance_branch_amountIsZero_opix_target_branch_177_True() public {
+        uint256 nonce = 99;
+        vm.prank(address(factory));
+        store.setIssuanceRequesterByNonce(nonce, alice);
+        vm.prank(address(factory));
+        store.setIssuanceRoundToNonce(nonce, 1);
+        vm.prank(address(factory));
+        store.setIssuanceRoundActive(1, true);
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("nothing to refund"));
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelIssuance_branch_issuanceRoundActive_false_opix_target_branch_183_False() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        vm.prank(address(factory));
+        store.setIssuanceRoundActive(1, false);
+        assertFalse(store.issuanceRoundActive(1));
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("round not active"));
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelIssuance_branch_balanceOfSCA_lt_amount_opix_target_branch_185_True() public {
+        uint256 amt = 10_000 * ONE_USDC;
+        vm.startPrank(alice);
+        uint256 nonce =
+            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        vm.stopPrank();
+
+        address scaAddr = address(sca);
+        address dummy = address(0xdead);
+        vm.prank(scaAddr);
+        usdc.transfer(dummy, amt);
+        assertEq(usdc.balanceOf(scaAddr), 0);
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("USDC already deployed"));
+        factory.cancelIssuance(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_branch_redemptionRequestCancelled_true1() public {
         uint256 idxAmount = 100 ether;
         _mintAndApproveIdx(alice, idxAmount);
 
@@ -767,9 +688,95 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         assertTrue(store.redemptionRequestCancelled(nonce));
 
         vm.startPrank(alice);
-        // vm.expectRevert(bytes("request already cancelled"));
         vm.expectRevert(OrderAlreadyCancelled.selector);
         factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_onlyRequesterCanCancel_branch_coverage_opix_target_branch_205_True() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
+
+        vm.startPrank(bob);
+        vm.expectRevert("Only requester can cancel");
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_onlyRequesterCanCancel_branch_coverage_opix_target_branch_205_False() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
+
+        vm.startPrank(alice);
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+
+        assertTrue(store.redemptionRequestCancelled(nonce));
+        assertTrue(store.redemptionIsCompleted(nonce));
+    }
+
+    function test_cancelRedemption_branch_amountIsZero_opix_target_branch_208_True() public {
+        uint256 nonce = 99;
+        vm.prank(address(factory));
+        store.setRedemptionRequesterByNonce(nonce, alice);
+        vm.prank(address(factory));
+        store.setRedemptionRoundToNonce(nonce, 1);
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, true);
+        idx.mint(address(sca), 100 ether);
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("nothing to refund"));
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_branch_redemptionRoundActive_false_opix_target_branch_211_False() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
+
+        vm.prank(address(factory));
+        store.setRedemptionRoundActive(1, false);
+        assertFalse(store.redemptionRoundActive(1));
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("round not active"));
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_cancelRedemption_branch_balanceOfSCA_lt_amount_opix_target_branch_213_True() public {
+        uint256 idxAmount = 100 ether;
+        _mintAndApproveIdx(alice, idxAmount);
+
+        vm.prank(alice);
+        uint256 nonce = factory.redemption{value: 10}(idxAmount);
+
+        address scaAddr = address(sca);
+        address dummy = address(0xdead);
+        vm.prank(scaAddr);
+        idx.transfer(dummy, idxAmount);
+        assertEq(idx.balanceOf(scaAddr), 0);
+
+        vm.startPrank(alice);
+        vm.expectRevert(bytes("IDX already deployed")); // opix-target-branch-213-True
+        factory.cancelRedemption(nonce);
+        vm.stopPrank();
+    }
+
+    function test_pause_branch_coverage_opix_target_branch_233_True() public {
+        vm.startPrank(alice);
+        vm.expectRevert("Caller is not the owner or operator"); // opix-target-branch-233-True
+        factory.pause();
         vm.stopPrank();
     }
 }

@@ -363,35 +363,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(store.issuanceRoundId(), 2);
     }
 
-    // function test_initialize_FailWhenIndexTokenAddressIsInvalid() public {
-    //     vm.startPrank(owner);
-
-    //     DummyOracle oracle = new DummyOracle();
-    //     IndexFactoryStorage impl = new IndexFactoryStorage();
-
-    //     vm.expectRevert("Invalid _indexToken address");
-    //     new ERC1967Proxy(
-    //         address(impl),
-    //         abi.encodeCall(
-    //             IndexFactoryStorage.initialize,
-    //             (
-    //                 address(0),
-    //                 factory,
-    //                 address(oracle),
-    //                 address(0x1234),
-    //                 vault,
-    //                 nexBot,
-    //                 address(0xDEAD),
-    //                 address(0xBEEF),
-    //                 bond,
-    //                 feeVault,
-    //                 address(1)
-    //             )
-    //         )
-    //     );
-    //     vm.stopPrank();
-    // }
-
     function test_initialize_FailWhenStagingCustodyAccountAddressIsInvalid() public {
         vm.startPrank(owner);
         DummyOracle oracle = new DummyOracle();
@@ -510,44 +481,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         assertEq(address(store.sca()), newSCA);
         vm.stopPrank();
     }
-
-    // function test_undoIssuance_ElseBranchInPruneLoop() public {
-    //     address charlie = vm.addr(6);
-    //     vm.startPrank(factory);
-    //     store.addIssuanceForCurrentRound(alice, 100);
-    //     store.addIssuanceForCurrentRound(bob, 50);
-    //     store.addIssuanceForCurrentRound(charlie, 25);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoIssuance(alice, 100);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoIssuance(bob, 50);
-    //     vm.stopPrank();
-
-    //     address[] memory list = store.addressesInIssuanceRound(1);
-    //     assertEq(list.length, 1);
-    //     assertEq(list[0], charlie);
-    // }
-
-    // function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero() public {
-    //     vm.startPrank(factory);
-    //     store.addRedemptionForCurrentRound(alice, 100);
-    //     store.addRedemptionForCurrentRound(bob, 50);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoRedemption(alice, 100);
-    //     vm.stopPrank();
-
-    //     address[] memory list = store.addressesInRedemptionRound(1);
-    //     assertEq(list.length, 1);
-    //     assertEq(list[0], bob);
-    //     assertEq(store.redemptionAmountByRoundUser(1, alice), 0);
-    //     assertEq(store.totalRedemptionByRound(1), 50);
-    // }
 
     function test_nextProcessableRoundId_revertsOnUnsettledRound() public {
         vm.prank(factory);
@@ -688,48 +621,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         store.setRedemptionRequesterByNonce(nonce, requester);
     }
 
-    // function test_undoRedemption_ElseBranchInPruneLoop() public {
-    //     address charlie = vm.addr(6);
-    //     vm.startPrank(factory);
-    //     store.addRedemptionForCurrentRound(alice, 100);
-    //     store.addRedemptionForCurrentRound(bob, 50);
-    //     store.addRedemptionForCurrentRound(charlie, 25);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoRedemption(bob, 50);
-    //     vm.stopPrank();
-
-    //     address[] memory list = store.addressesInRedemptionRound(1);
-    //     assertEq(list.length, 2);
-    //     assertEq(list[0], alice);
-    //     assertEq(list[1], charlie);
-    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-    //     assertEq(store.totalRedemptionByRound(1), 125);
-    // }
-
-    // function test_undoRedemption_PruneAddressWhenRedemptionAmountIsZero_LastAddress() public {
-    //     // address charlie = vm.addr(6);
-    //     vm.startPrank(factory);
-    //     store.addRedemptionForCurrentRound(alice, 100);
-    //     store.addRedemptionForCurrentRound(bob, 50);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoRedemption(alice, 100);
-    //     vm.stopPrank();
-
-    //     vm.startPrank(factory);
-    //     store.undoRedemption(bob, 50);
-    //     vm.stopPrank();
-
-    //     address[] memory list = store.addressesInRedemptionRound(1);
-    //     assertEq(list.length, 0);
-    //     assertEq(store.redemptionAmountByRoundUser(1, bob), 0);
-    //     assertEq(store.totalRedemptionByRound(1), 0);
-    //     assertEq(store.redemptionRoundActive(1), false);
-    // }
-
     function test_nextProcessableRoundIdForRedemption_revertsOnUnsettledRound() public {
         vm.startPrank(factory);
         store.addRedemptionForCurrentRound(alice, 100);
@@ -849,31 +740,6 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         );
     }
 
-    // function test_resetTokenPendingRebalanceAmount_and_resetAll() public {
-    //     uint256 nonce = 11;
-    //     uint256 amt = 3 ether;
-
-    //     // seed some pending amounts (factory authorised)
-    //     vm.prank(factory);
-    //     store.increaseTokenPendingRebalanceAmount(address(bond), nonce, amt);
-    //     vm.prank(factory);
-    //     store.increaseTokenPendingRebalanceAmount(address(cr5), nonce, amt);
-
-    //     // owner acts as Operator -> can call reset helpers
-    //     vm.prank(store.owner());
-    //     store.resetTokenPendingRebalanceAmount(address(bond), nonce);
-
-    //     assertEq(store.tokenPendingRebalanceAmount(address(bond)), 0, "bond reset");
-    //     assertEq(store.tokenPendingRebalanceAmountByNonce(address(bond), nonce), 0, "bond reset-nonce");
-
-    //     // reset *all* remaining (will clear CR-5 entry)
-    //     vm.prank(store.owner());
-    //     store.resetAllTokenPendingRebalanceAmount(nonce);
-
-    //     assertEq(store.tokenPendingRebalanceAmount(address(cr5)), 0, "cr5 reset by resetAll");
-    //     assertEq(store.tokenPendingRebalanceAmountByNonce(address(cr5), nonce), 0, "cr5 reset-nonce");
-    // }
-
     function test_decreaseTokenPendingRebalanceAmount_revertsOnBadInput() public {
         uint256 nonce = 99;
         address token = address(bond);
@@ -897,5 +763,296 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
 
         vm.expectRevert("Caller is not a factory contract");
         store.decreaseTokenPendingRebalanceAmount(token, nonce, 1);
+    }
+
+    function test_setFeeRate_Require12HoursSinceLastUpdate() public {
+        vm.startPrank(owner);
+        store.latestFeeUpdate();
+        uint256 nowTime = 1000000;
+        vm.warp(nowTime);
+        store.setFeeRate(10);
+        vm.expectRevert("You should wait at least 12 hours after the latest update");
+        store.setFeeRate(20);
+        vm.warp(nowTime + 43200);
+        store.setFeeRate(30);
+        assertEq(store.feeRate(), 30);
+        vm.stopPrank();
+    }
+
+    function test_setRedemptionFeeByNonce_SuccessWhenSenderIsFactory() public {
+        uint256 nonce = 1;
+        uint256 fee = 1234;
+        assertEq(store.redemptionFeeByNonce(nonce), 0);
+        vm.prank(factory);
+        store.setRedemptionFeeByNonce(nonce, fee);
+        assertEq(store.redemptionFeeByNonce(nonce), fee);
+    }
+
+    function test_setIssuanceRequestCancelled_SuccessWhenSenderIsFactory() public {
+        uint256 nonce = 123;
+        assertEq(store.issuanceRequestCancelled(nonce), false);
+        vm.prank(factory);
+        store.setIssuanceRequestCancelled(nonce, true);
+        assertEq(store.issuanceRequestCancelled(nonce), true);
+    }
+
+    function test_setRedemptionRequestCancelled_SuccessWhenSenderIsFactory() public {
+        uint256 nonce = 456;
+        assertEq(store.redemptionRequestCancelled(nonce), false);
+        vm.prank(factory);
+        store.setRedemptionRequestCancelled(nonce, true);
+        assertEq(store.redemptionRequestCancelled(nonce), true);
+    }
+
+    function test_undoIssuanceForRound_RequireElseBranch() public {
+        address charlie = vm.addr(6);
+        uint256 nonce = 1;
+        uint256 roundId = 1;
+        uint256 amount = 100;
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, amount);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(charlie, amount);
+        vm.prank(factory);
+        store.undoIssuanceForRound(roundId, nonce, alice, amount);
+        assertEq(store.issuanceAmountByRoundUser(roundId, alice), 0);
+        assertEq(store.issuanceAmountByRoundUser(roundId, charlie), amount);
+        address[] memory list = store.addressesInIssuanceRound(roundId);
+        assertEq(list.length, 1);
+        assertEq(list[0], charlie);
+    }
+
+    function test_undoIssuanceForRound_elseBranch() public {
+        address charlie = vm.addr(6);
+        uint256 nonce = 1;
+        uint256 roundId = 1;
+        uint256 amount = 100;
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, amount);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, amount); // alice now has 200
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(charlie, amount);
+        vm.prank(factory);
+        store.undoIssuanceForRound(roundId, nonce, alice, amount); // alice will have 100 left
+        address[] memory list = store.addressesInIssuanceRound(roundId);
+        assertEq(list.length, 2);
+        bool foundAlice = false;
+        bool foundCharlie = false;
+        for (uint256 i = 0; i < list.length; ++i) {
+            if (list[i] == alice) foundAlice = true;
+            if (list[i] == charlie) foundCharlie = true;
+        }
+        assertTrue(foundAlice, "alice should remain");
+        assertTrue(foundCharlie, "charlie should remain");
+        assertEq(store.issuanceAmountByRoundUser(roundId, alice), 100);
+        assertEq(store.issuanceAmountByRoundUser(roundId, charlie), 100);
+    }
+
+    function test_pruneAddressFromIssuance_elseBranch() public {
+        address charlie = vm.addr(6);
+        address dave = vm.addr(7);
+        uint256 nonce = 1;
+        uint256 roundId = 1;
+        uint256 amount = 100;
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, amount);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(charlie, amount);
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(dave, amount);
+        vm.prank(factory);
+        store.undoIssuanceForRound(roundId, nonce, dave, amount);
+        address[] memory list = store.addressesInIssuanceRound(roundId);
+        assertEq(list.length, 2);
+        bool foundAlice = false;
+        bool foundCharlie = false;
+        for (uint256 i = 0; i < list.length; ++i) {
+            if (list[i] == alice) foundAlice = true;
+            if (list[i] == charlie) foundCharlie = true;
+        }
+        assertTrue(foundAlice, "alice should remain");
+        assertTrue(foundCharlie, "charlie should remain");
+        // dave should be gone
+        for (uint256 i = 0; i < list.length; ++i) {
+            assertTrue(list[i] != dave, "dave should be pruned");
+        }
+    }
+
+    function test_removeIssuanceNonce_successfulRemove() public {
+        uint256 roundId = 1;
+        uint256 nonce = 99;
+        vm.prank(factory);
+        store.addIssuanceForCurrentRound(alice, 100);
+        vm.prank(factory);
+        store.addNonceToIssuanceRound(roundId, nonce);
+        uint256[] memory beforeArr = store.getIssuanceRoundIdToNonces(roundId);
+        bool found = false;
+        for (uint256 i = 0; i < beforeArr.length; ++i) {
+            if (beforeArr[i] == nonce) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found, "Nonce should be present before removal");
+        vm.prank(factory);
+        store.removeIssuanceNonce(roundId, nonce);
+        uint256[] memory afterArr = store.getIssuanceRoundIdToNonces(roundId);
+        for (uint256 i = 0; i < afterArr.length; ++i) {
+            assertTrue(afterArr[i] != nonce, "Nonce should be removed");
+        }
+    }
+
+    function test_removeIssuanceNonce_elseBranch() public {
+        uint256 roundId = 1;
+        uint256 nonce1 = 100;
+        uint256 nonce2 = 200;
+        uint256 nonce3 = 300;
+        vm.prank(factory);
+        store.addNonceToIssuanceRound(roundId, nonce1);
+        vm.prank(factory);
+        store.addNonceToIssuanceRound(roundId, nonce2);
+        vm.prank(factory);
+        store.addNonceToIssuanceRound(roundId, nonce3);
+        uint256[] memory before = store.getIssuanceRoundIdToNonces(roundId);
+        assertEq(before.length, 3);
+        assertEq(before[0], nonce1);
+        assertEq(before[1], nonce2);
+        assertEq(before[2], nonce3);
+        vm.prank(factory);
+        store.removeIssuanceNonce(roundId, nonce2);
+        uint256[] memory afterArr = store.getIssuanceRoundIdToNonces(roundId);
+        assertEq(afterArr.length, 2);
+        bool found1 = false;
+        bool found3 = false;
+        for (uint256 i = 0; i < afterArr.length; ++i) {
+            if (afterArr[i] == nonce1) found1 = true;
+            if (afterArr[i] == nonce3) found3 = true;
+        }
+        assertTrue(found1, "nonce1 should remain");
+        assertTrue(found3, "nonce3 should remain");
+    }
+
+    function test_undoRedemption_requireElseBranch() public {
+        uint256 roundId = 1;
+        uint256 nonce = 77;
+        uint256 amount = 100;
+        vm.startPrank(factory);
+        store.addRedemptionForCurrentRound(alice, amount);
+        store.addRedemptionForCurrentRound(alice, amount);
+        store.undoRedemptionForRound(roundId, nonce, alice, amount);
+        vm.stopPrank();
+        address[] memory list = store.addressesInRedemptionRound(roundId);
+        assertEq(list.length, 1);
+        assertEq(list[0], alice);
+        assertEq(store.redemptionAmountByRoundUser(roundId, alice), 100);
+    }
+
+    function test_undoRedemptionForRound_pruneAddressWhenRedemptionAmountIsZero() public {
+        uint256 roundId = 1;
+        uint256 nonce = 77;
+        uint256 amountAlice = 100;
+        uint256 amountBob = 50;
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(alice, amountAlice);
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(bob, amountBob);
+        vm.prank(factory);
+        store.undoRedemptionForRound(roundId, nonce, alice, amountAlice);
+        assertEq(store.redemptionAmountByRoundUser(roundId, alice), 0);
+        assertEq(store.redemptionAmountByRoundUser(roundId, bob), amountBob);
+        address[] memory list = store.addressesInRedemptionRound(roundId);
+        assertEq(list.length, 1);
+        assertEq(list[0], bob);
+    }
+
+    function test__pruneAddressFromRedemption_elseBranch() public {
+        uint256 roundId = 1;
+        address user1 = alice;
+        address user2 = bob;
+        address user3 = vm.addr(0xDEAD);
+        uint256 nonce = 42;
+        // Add user1, user2, user3 to the round
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(user1, 100);
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(user2, 50);
+        vm.prank(factory);
+        store.addRedemptionForCurrentRound(user3, 25);
+        vm.prank(factory);
+        store.undoRedemptionForRound(roundId, nonce, user3, 25);
+        address[] memory list = store.addressesInRedemptionRound(roundId);
+        assertEq(list.length, 2);
+        bool found1 = false;
+        bool found2 = false;
+        for (uint256 i = 0; i < list.length; ++i) {
+            if (list[i] == user1) found1 = true;
+            if (list[i] == user2) found2 = true;
+        }
+        assertTrue(found1, "user1 should remain");
+        assertTrue(found2, "user2 should remain");
+        for (uint256 i = 0; i < list.length; ++i) {
+            assertTrue(list[i] != user3, "user3 should be pruned");
+        }
+    }
+
+    function test_removeRedemptionNonce_revertsForUnauthorizedCaller() public {
+        uint256 roundId = 1;
+        uint256 nonce = 42;
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce);
+        vm.prank(alice);
+        vm.expectRevert("Caller is not a factory contract");
+        store.removeRedemptionNonce(roundId, nonce);
+    }
+
+    function test_removeRedemptionNonce_success_authorized() public {
+        uint256 roundId = 1;
+        uint256 nonce1 = 42;
+        uint256 nonce2 = 43;
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce1);
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce2);
+        uint256[] memory before = store.getRedemptionRoundIdToNonces(roundId);
+        assertEq(before.length, 2);
+        assertEq(before[0], nonce1);
+        assertEq(before[1], nonce2);
+        vm.prank(factory);
+        store.removeRedemptionNonce(roundId, nonce1);
+        uint256[] memory afterArr = store.getRedemptionRoundIdToNonces(roundId);
+        assertEq(afterArr.length, 1);
+        assertEq(afterArr[0], nonce2);
+    }
+
+    function test_removeRedemptionNonce_elseBranch() public {
+        uint256 roundId = 1;
+        uint256 nonce1 = 100;
+        uint256 nonce2 = 200;
+        uint256 nonce3 = 300;
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce1);
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce2);
+        vm.prank(factory);
+        store.addNonceToRedemptionRound(roundId, nonce3);
+        // Confirm all are present
+        uint256[] memory before = store.getRedemptionRoundIdToNonces(roundId);
+        assertEq(before.length, 3);
+        assertEq(before[0], nonce1);
+        assertEq(before[1], nonce2);
+        assertEq(before[2], nonce3);
+        vm.prank(factory);
+        store.removeRedemptionNonce(roundId, nonce2);
+        uint256[] memory afterArr = store.getRedemptionRoundIdToNonces(roundId);
+        assertEq(afterArr.length, 2);
+        bool found1 = false;
+        bool found3 = false;
+        for (uint256 i = 0; i < afterArr.length; ++i) {
+            if (afterArr[i] == nonce1) found1 = true;
+            if (afterArr[i] == nonce3) found3 = true;
+        }
+        assertTrue(found1, "nonce1 should remain");
+        assertTrue(found3, "nonce3 should remain");
     }
 }
