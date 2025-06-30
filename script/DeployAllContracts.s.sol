@@ -15,22 +15,22 @@ import {StagingCustodyAccount} from "../src/SCA/StagingCustodyAccount.sol";
 import {IndexFactoryBalancer} from "../src/factory/IndexFactoryBalancer.sol";
 
 contract DeployAllContracts is Script {
-    string private prefix; // "SEPOLIA_" or "ARBITRUM_"
+    string private prefix;
 
-    function a(string memory key) internal view returns (address) {
-        return vm.envAddress(string.concat(prefix, key));
+    function A(string memory k) internal view returns (address) {
+        return vm.envAddress(string.concat(prefix, k));
     }
 
-    function u(string memory key) internal view returns (uint256) {
-        return vm.envUint(string.concat(prefix, key));
+    function U(string memory k) internal view returns (uint256) {
+        return vm.envUint(string.concat(prefix, k));
     }
 
-    function b32(string memory key) internal view returns (bytes32) {
-        return vm.envBytes32(string.concat(prefix, key));
+    function B(string memory k) internal view returns (bytes32) {
+        return vm.envBytes32(string.concat(prefix, k));
     }
 
-    function s(string memory key) internal view returns (string memory) {
-        return vm.envString(string.concat(prefix, key));
+    function S(string memory k) internal view returns (string memory) {
+        return vm.envString(string.concat(prefix, k));
     }
 
     function run() external {
@@ -42,13 +42,38 @@ contract DeployAllContracts is Script {
 
         vm.startBroadcast(pk);
 
+        address storageProxy = Upgrades.deployTransparentProxy(
+            "IndexFactoryStorage.sol",
+            owner,
+            abi.encodeCall(
+                IndexFactoryStorage.initialize,
+                (
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    address(0),
+                    A("NEX_BOT_ADDRESS"),
+                    A("RISK_ASSET_ADDRESS"),
+                    A("USDC_ADDRESS"),
+                    A("BOND_ADDRESS"),
+                    address(0),
+                    address(0)
+                )
+            )
+        );
+        IndexFactoryStorage ifs = IndexFactoryStorage(storageProxy);
+
         address vaultProxy =
-            Upgrades.deployTransparentProxy("Vault.sol", owner, abi.encodeCall(Vault.initialize, (address(0))));
+            Upgrades.deployTransparentProxy("Vault.sol", owner, abi.encodeCall(Vault.initialize, (owner)));
+
+        address feeVaultProxy =
+            Upgrades.deployTransparentProxy("FeeVault.sol", owner, abi.encodeCall(FeeVault.initialize, (storageProxy)));
 
         address functionsOracleProxy = Upgrades.deployTransparentProxy(
             "FunctionsOracle.sol",
             owner,
-            abi.encodeCall(FunctionsOracle.initialize, (a("FUNCTIONS_ROUTER_ADDRESS"), b32("NEW_DON_ID")))
+            abi.encodeCall(FunctionsOracle.initialize, (A("FUNCTIONS_ROUTER_ADDRESS"), B("NEW_DON_ID")))
         );
 
         address indexTokenProxy = Upgrades.deployTransparentProxy(
@@ -57,19 +82,14 @@ contract DeployAllContracts is Script {
             abi.encodeCall(
                 IndexToken.initialize,
                 (
-                    s("TOKEN_NAME"),
-                    s("TOKEN_SYMBOL"),
-                    u("FEE_RATE_PER_DAY_SCALED"),
-                    a("FEE_RECEIVER"),
-                    u("SUPPLY_CEILING")
+                    S("TOKEN_NAME"),
+                    S("TOKEN_SYMBOL"),
+                    U("FEE_RATE_PER_DAY_SCALED"),
+                    A("FEE_RECEIVER"),
+                    U("SUPPLY_CEILING")
                 )
             )
         );
-
-        address storageProxy = Upgrades.deployTransparentProxy("IndexFactoryStorage.sol", owner, bytes(""));
-
-        address feeVaultProxy =
-            Upgrades.deployTransparentProxy("FeeVault.sol", owner, abi.encodeCall(FeeVault.initialize, (storageProxy)));
 
         address indexFactoryProxy = Upgrades.deployTransparentProxy(
             "IndexFactory.sol", owner, abi.encodeCall(IndexFactory.initialize, (storageProxy, feeVaultProxy))
@@ -79,37 +99,30 @@ contract DeployAllContracts is Script {
             "StagingCustodyAccount.sol", owner, abi.encodeCall(StagingCustodyAccount.initialize, (storageProxy))
         );
 
-        address balancerProxy = Upgrades.deployTransparentProxy(
-            "IndexFactoryBalancer.sol",
-            owner,
-            abi.encodeCall(IndexFactoryBalancer.initialize, (storageProxy, functionsOracleProxy))
-        );
+        // address balancerProxy = Upgrades.deployTransparentProxy(
+        //     "IndexFactoryBalancer.sol",
+        //     owner,
+        //     abi.encodeCall(IndexFactoryBalancer.initialize, (storageProxy, functionsOracleProxy))
+        // );
 
-        IndexFactoryStorage(storageProxy).initialize(
-            indexTokenProxy,
-            indexFactoryProxy,
-            functionsOracleProxy,
-            scaProxy,
-            vaultProxy,
-            a("NEX_BOT_ADDRESS"),
-            a("RISK_ASSET_ADDRESS"),
-            a("USDC_ADDRESS"),
-            a("BOND_ADDRESS"),
-            feeVaultProxy,
-            balancerProxy
-        );
+        ifs.setIndexToken(indexTokenProxy);
+        ifs.setVault(vaultProxy);
+        ifs.setFeeVault(feeVaultProxy);
+        ifs.setFunctionsOracle(functionsOracleProxy);
+        ifs.setIndexFactory(indexFactoryProxy);
+        ifs.setSCA(scaProxy);
+        // ifs.setIndexFactoryBalancer(balancerProxy);
 
         vm.stopBroadcast();
 
         console.log("\n=== Deployment (%s) ===", net);
-        console.log("Vault.....................", vaultProxy);
-        console.log("FunctionsOracle...........", functionsOracleProxy);
-        console.log("IndexToken................", indexTokenProxy);
-        console.log("FeeVault..................", feeVaultProxy);
-        console.log("IndexFactory..............", indexFactoryProxy);
-        console.log("StagingCustodyAccount.....", scaProxy);
-        console.log("IndexFactoryBalancer......", balancerProxy);
-        console.log("IndexFactoryStorage.......", storageProxy);
-        console.log("===========================");
+        console.log("IndexFactoryStorage  ..... ", storageProxy);
+        console.log("Vault .................... ", vaultProxy);
+        console.log("FeeVault ..................", feeVaultProxy);
+        console.log("FunctionsOracle ...........", functionsOracleProxy);
+        console.log("IndexToken ................", indexTokenProxy);
+        console.log("IndexFactory ..............", indexFactoryProxy);
+        console.log("StagingCustodyAccount .....", scaProxy);
+        console.log("===========================================\n");
     }
 }
