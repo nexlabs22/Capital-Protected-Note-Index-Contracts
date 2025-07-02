@@ -179,11 +179,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         usdc.approve(address(factory), type(uint256).max);
     }
 
-    function testIncreaseRoundIdNonOwnerAddr() public {
-        vm.startPrank(alice);
-        vm.expectRevert("Caller is not the owner or operator");
-        factory.increaseCurrentRoundId();
-    }
+    // function testIncreaseRoundIdNonOwnerAddr() public {
+    //     vm.startPrank(alice);
+    //     vm.expectRevert("Caller is not the owner or operator");
+    //     factoryStorage.increaseCurrentRoundId();
+    // }
 
     // function testCancelIssuanceWithNonRequesterAddress() public {
     //     uint256 inputAmount = 10e18;
@@ -218,13 +218,13 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function test_increaseCurrentRoundId_FailWhenSenderIsNotOwnerOrOperator() public {
         vm.startPrank(alice);
         vm.expectRevert("Caller is not the owner or operator");
-        factory.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
         vm.stopPrank();
     }
 
     function test_increaseCurrentRoundId_SuccessfulIncreaseCurrentRoundId() public {
         vm.prank(address(this));
-        factory.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
         assertEq(store.issuanceRoundId(), 2);
     }
 
@@ -238,7 +238,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     function test_increaseRoundId_requiresOwnerOrOperator() public {
         vm.prank(alice);
         vm.expectRevert("Caller is not the owner or operator");
-        factory.increaseCurrentRoundId();
+        store.increaseIssuanceRoundId();
     }
 
     function testIssuance_HappyPath() public {

@@ -2,6 +2,7 @@ node_modules
 .env
 testnetDeployment.md
 mainnetDeployment.md
+.deployment.md
 
 # Hardhat files
 /cache

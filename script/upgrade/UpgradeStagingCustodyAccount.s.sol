@@ -12,22 +12,22 @@ contract UpgradeStagingCustodyAccount is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // string memory targetChain = "sepolia";
-        string memory targetChain = "arbitrum_mainnet";
+        string memory targetChain = "sepolia";
+        // string memory targetChain = "arbitrum_mainnet";
 
         address stagingCustodyAccountProxyAddress;
 
         address owner = vm.addr(deployerPrivateKey);
 
         if (keccak256(bytes(targetChain)) == keccak256("sepolia")) {
-            stagingCustodyAccountProxyAddress = vm.envAddress("SEPOLIA_STAGING_CUSTODY_ACCOUNT_PROXY_ADDRESS");
+            stagingCustodyAccountProxyAddress = vm.envAddress("SEPOLIA_SCA_PROXY_ADDRESS");
         } else if (keccak256(bytes(targetChain)) == keccak256("arbitrum_mainnet")) {
-            stagingCustodyAccountProxyAddress = vm.envAddress("ARBITRUM_STAGING_CUSTODY_ACCOUNT_PROXY_ADDRESS");
+            stagingCustodyAccountProxyAddress = vm.envAddress("ARBITRUM_SCA_PROXY_ADDRESS");
         } else {
             revert("Unsupported target chain");
         }
 
-        Upgrades.upgradeProxy(stagingCustodyAccountProxyAddress, "StagingCustodyAccount.sol", "", owner);
+        Upgrades.upgradeProxy(stagingCustodyAccountProxyAddress, "StagingCustodyAccountV5.sol", "", owner);
 
         address implAddrV2 = Upgrades.getImplementationAddress(stagingCustodyAccountProxyAddress);
 

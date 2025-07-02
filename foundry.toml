@@ -2,8 +2,13 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-test = "test"     # must be present but will be ignored
+test = "test"                                          # must be present but will be ignored
 script = "script"
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+ffi = true
+fs_permissions = [{ access = "read", path = "./out" }]
 # via_ir = true
 # optimizer = true
 # optimizer_runs = 200

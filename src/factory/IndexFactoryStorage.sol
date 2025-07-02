@@ -53,8 +53,8 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     mapping(uint256 => uint256) public totalRedemptionByRound;
     mapping(uint256 => bool) public issuanceRoundActive;
     mapping(uint256 => bool) public redemptionRoundActive;
-    mapping(uint256 => uint256) public roundIdToBondAmount;
-    mapping(uint256 => uint256) public roundIdToRiskAssetAmount;
+    // mapping(uint256 => uint256) public roundIdToBondAmount;
+    // mapping(uint256 => uint256) public roundIdToRiskAssetAmount;
     mapping(uint256 => uint256[]) public issuanceRoundIdToNonces;
     mapping(uint256 => uint256[]) public redemptionRoundIdToNonces;
     mapping(uint256 => uint256) public nonceToIssuanceRound;
@@ -104,10 +104,10 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     ) external initializer {
         // if (_indexToken != address(0)) revert InvalidAddress();
         // require(_indexToken != address(0), "Invalid _indexToken address");
-        require(_indexFactory != address(0), "Invalid _indexFactory address");
-        require(_functionsOracle != address(0), "Invalid _functionsOracle address");
-        require(_stagingCustodyAccount != address(0), "Invalid _stagingCustodyAccount address");
-        require(_vault != address(0), "Invalid _vault address");
+        // require(_indexFactory != address(0), "Invalid _indexFactory address");
+        // require(_functionsOracle != address(0), "Invalid _functionsOracle address");
+        // require(_stagingCustodyAccount != address(0), "Invalid _stagingCustodyAccount address");
+        // require(_vault != address(0), "Invalid _vault address");
         require(_nexBot != address(0), "Invalid _nexBot address");
         require(_riskAssetFactoryAddress != address(0), "Invalid _riskAssetFactoryAddress address");
         require(_usdc != address(0), "Invalid _usdc address");
@@ -156,6 +156,36 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     function setSCA(address _sca) external onlyOwner {
         if (_sca == address(0)) revert InvalidAddress();
         sca = StagingCustodyAccount(_sca);
+    }
+
+    function setIndexToken(address _indexToken) external onlyOwner {
+        if (_indexToken == address(0)) revert InvalidAddress();
+        indexToken = IndexToken(_indexToken);
+    }
+
+    function setVault(address _vault) external onlyOwner {
+        if (_vault == address(0)) revert InvalidAddress();
+        vault = Vault(_vault);
+    }
+
+    function setFeeVault(address _feeVault) external onlyOwner {
+        if (_feeVault == address(0)) revert InvalidAddress();
+        feeVault = FeeVault(_feeVault);
+    }
+
+    function setFunctionsOracle(address _functionsOracle) external onlyOwner {
+        if (_functionsOracle == address(0)) revert InvalidAddress();
+        functionsOracle = FunctionsOracle(_functionsOracle);
+    }
+
+    function setIndexFactory(address _indexFactory) external onlyOwner {
+        if (_indexFactory == address(0)) revert InvalidAddress();
+        indexFactory = IndexFactory(_indexFactory);
+    }
+
+    function setIndexFactoryBalancer(address _indexFactoryBalancer) external onlyOwner {
+        if (_indexFactoryBalancer == address(0)) revert InvalidAddress();
+        factoryBalancer = IndexFactoryBalancer(_indexFactoryBalancer);
     }
 
     function setFeeReceiver(address _feeReceiver) public onlyOwner {
@@ -410,6 +440,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
             }
         }
         return (true, redemptionRoundId);
+    }
+
+    function getCurrentIssuanceRoundActivationStatus() external view returns (bool isActive, uint256 roundId) {
+        return (issuanceRoundActive[issuanceRoundId], issuanceRoundId);
+    }
+
+    function getCurrentRedemptionRoundActivationStatus() external view returns (bool isActive, uint256 roundId) {
+        return (redemptionRoundActive[redemptionRoundId], redemptionRoundId);
     }
 
     /**

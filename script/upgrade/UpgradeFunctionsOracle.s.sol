@@ -12,8 +12,8 @@ contract UpgradeFunctionOracle is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // string memory targetChain = "sepolia";
-        string memory targetChain = "arbitrum_mainnet";
+        string memory targetChain = "sepolia";
+        // string memory targetChain = "arbitrum_mainnet";
 
         address functionOracleProxyAddress;
 
@@ -27,7 +27,7 @@ contract UpgradeFunctionOracle is Script {
             revert("Unsupported target chain");
         }
 
-        Upgrades.upgradeProxy(functionOracleProxyAddress, "FunctionsOracle.sol", "", owner);
+        Upgrades.upgradeProxy(functionOracleProxyAddress, "FunctionsOracleV2.sol", "", owner);
 
         address implAddrV2 = Upgrades.getImplementationAddress(functionOracleProxyAddress);
 

@@ -18,6 +18,7 @@ contract DeployStagingCustodyAccount is Script {
         // string memory targetChain = "arbitrum_mainnet";
 
         address indexFactoryStorageProxy;
+        // address indexFactoryStorageProxy = 0xfff04455959AFf67d30E5F5c9C2010BfAE5dFd76;
 
         address owner = vm.addr(deployerPrivateKey);
 
