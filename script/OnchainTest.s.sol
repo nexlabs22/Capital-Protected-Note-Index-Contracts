@@ -35,14 +35,15 @@ contract OnchainTest is Script {
     // address indexFactoryBalancer = vm.envAddress("SEPOLIA_INDEX_FACTORY_BALANCER_PROXY_ADDRESS");
 
     function run() external {
-        // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
+        indexToken = IndexToken(payable(indexTokenProxy));
         ////////////// USER //////////////
-
-        // indexToken = IndexToken(payable(indexTokenProxy));
+        // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         // vm.startBroadcast(deployerPrivateKey);
 
-        // issuanceIndexTokens();
+        // // issuanceIndexTokens();
+
+        // // redemption();
+        // completeRedemption();
 
         // // requestIssuance();
 
@@ -50,23 +51,25 @@ contract OnchainTest is Script {
 
         //////////// TEST USER //////////////
 
-        uint256 testUserPrivateKey = vm.envUint("TEST_USER_PRIVATE_KEY");
-        vm.startBroadcast(testUserPrivateKey);
+        // uint256 testUserPrivateKey = vm.envUint("TEST_USER_PRIVATE_KEY");
+        // vm.startBroadcast(testUserPrivateKey);
 
-        // issuanceIndexTokens();
-        cancelIssuance();
+        // // issuanceIndexTokens();
+        // cancelIssuance();
 
-        vm.stopBroadcast();
+        // vm.stopBroadcast();
 
         ////////////// NEX BOT //////////////
 
-        // uint256 nexBotPrivateKey = vm.envUint("NEX_BOT_PRIVATE_KEY");
-        // vm.startBroadcast(nexBotPrivateKey);
+        uint256 nexBotPrivateKey = vm.envUint("NEX_BOT_PRIVATE_KEY");
+        vm.startBroadcast(nexBotPrivateKey);
 
         // // completeIssuance();
-        // requestIssuance();
+        // // requestIssuance();
+        // requestRedemption();
+        completeRedemption();
 
-        // vm.stopBroadcast();
+        vm.stopBroadcast();
     }
 
     function issuanceIndexTokens() public {
@@ -85,17 +88,37 @@ contract OnchainTest is Script {
         );
     }
 
+    function redemption() public {
+        // uint256 balance = IERC20(indexTokenProxy).balanceOf(address(user));
+        uint256 redemptionFee = IRiskAssetFactory(payable(cr5FactoryAddress)).getRedemptionFee(70000000000000000);
+        IERC20(indexTokenProxy).approve(address(indexFactoryProxy), 70000000000000000);
+
+        IndexFactory(payable(indexFactoryProxy)).redemption{value: redemptionFee}(70000000000000000);
+    }
+
     function requestIssuance() public {
-        uint256 inputAmount = 3e6;
+        uint256 inputAmount = 22e6;
         address[] memory path = new address[](2);
         path[0] = address(usdc);
         path[1] = address(weth);
         uint24[] memory fees = new uint24[](1);
-        fees[0] = 100;
+        fees[0] = 3000;
         uint256 issuanceFee =
             IRiskAssetFactory(payable(cr5FactoryAddress)).getIssuanceFee(address(usdc), path, fees, inputAmount);
 
-        StagingCustodyAccount(payable(scaProxy)).requestIssuance{value: issuanceFee}(2, path, fees);
+        StagingCustodyAccount(payable(scaProxy)).requestIssuance{value: issuanceFee}(3, path, fees);
+    }
+
+    function requestRedemption() public {
+        uint256 redemptionFee = IRiskAssetFactory(payable(cr5FactoryAddress)).getRedemptionFee(70000000000000000);
+
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(weth);
+        uint24[] memory fees = new uint24[](1);
+        fees[0] = 3000;
+
+        StagingCustodyAccount(payable(scaProxy)).requestRedemption{value: redemptionFee}(1, path, fees);
     }
 
     function completeIssuance() public {
@@ -108,10 +131,20 @@ contract OnchainTest is Script {
         // uint256 issuanceFee =
         //     IRiskAssetFactory(payable(cr5FactoryAddress)).getIssuanceFee(address(usdc), path, fees, inputAmount);
 
-        StagingCustodyAccount(payable(scaProxy)).completeIssuance(1, 6450000000000000000, 122000000000000000000);
+        StagingCustodyAccount(payable(scaProxy)).completeIssuance(2, 6450000000000000000, 133140000000000000000);
+        // StagingCustodyAccount(payable(scaProxy)).completeIssuance(2, 6450000000000000000, 133140000000000000000);
+    }
+
+    function completeRedemption() public {
+        IERC20(usdc).approve(address(scaProxy), 5677000000000000000);
+
+        StagingCustodyAccount(payable(scaProxy)).completeRedemption(1, 5677000, 1440000);
     }
 
     function cancelIssuance() public {
         IndexFactory(payable(indexFactoryProxy)).cancelIssuance(5);
     }
+
+    // 5.677 bond
+    // 1.44 crypto5
 }

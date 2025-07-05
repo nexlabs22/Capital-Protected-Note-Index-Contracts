@@ -110,6 +110,18 @@ contract FunctionsOracle is Initializable, FunctionsClient, ConfirmedOwner {
         _initData(assetType, _tokens, _marketShares);
     }
 
+    function mockFulFill(uint8[] memory assetType, address[] memory _tokens, uint256[] memory _marketShares)
+        public
+        onlyOwner
+    {
+        // (uint8[] memory assetType, address[] memory _tokens, uint256[] memory _marketShares) =
+        //     abi.decode(response, (uint8[], address[], uint256[]));
+        // require(requestId.length > 0, "invalid request id");
+        // require(_tokens.length > 0, "invalid tokens");
+        // require(_marketShares.length > 0, "invalid market shares");
+        _initData(assetType, _tokens, _marketShares);
+    }
+
     function _initData(uint8[] memory _assetType, address[] memory _tokens, uint256[] memory _marketShares) internal {
         address[] memory tokens0 = _tokens;
         uint256[] memory marketShares0 = _marketShares;

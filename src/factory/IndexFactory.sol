@@ -35,7 +35,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         address indexed user,
         address inputToken,
         uint256 inputAmount,
-        // uint256 outputAmount,
         uint256 feeAmount,
         uint256 time
     );
@@ -46,7 +45,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         address indexed user,
         address outputToken,
         uint256 inputAmount,
-        // uint256 outputAmount,
         uint256 time
     );
 
@@ -102,7 +100,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     ) public payable whenNotPaused nonReentrant returns (uint256) {
         if (_inputAmount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getIssuanceFee(_tokenIn, _tokenInPath, _tokenInFees, _inputAmount);
-        if (msg.value != ethFee) revert WrongETHAmount();
+        // if (msg.value != ethFee) revert WrongETHAmount();
+        if (msg.value < ethFee) revert WrongETHAmount();
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -110,7 +109,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(factoryStorage.sca()), _inputAmount);
         IERC20(factoryStorage.usdc()).safeTransferFrom(msg.sender, address(feeVault), usdcFee);
 
-        //  issuanceNonce++;
         uint256 nonce = ++issuanceNonce;
         factoryStorage.setIssuanceInputAmount(nonce, _inputAmount);
         factoryStorage.setIssuanceFeeByNonce(nonce, usdcFee);
@@ -127,7 +125,6 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
             msg.sender,
             address(factoryStorage.usdc()),
             _inputAmount,
-            // 0,
             usdcFee,
             block.timestamp
         );
@@ -137,7 +134,8 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
     function redemption(uint256 _amount) external payable whenNotPaused nonReentrant returns (uint256 nonce) {
         if (_amount == 0) revert ZeroAmount();
         uint256 ethFee = factoryStorage.getRedemptionFee(_amount);
-        if (msg.value != ethFee) revert WrongETHAmount();
+        if (msg.value < ethFee) revert WrongETHAmount();
+        // if (msg.value != ethFee) revert WrongETHAmount();
         (bool success,) = factoryStorage.nexBot().call{value: ethFee}("");
         require(success, "ETH transfer failed!");
 
@@ -159,14 +157,12 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
             msg.sender,
             address(factoryStorage.usdc()),
             _amount,
-            // 0,
             block.timestamp
         );
         return nonce;
     }
 
     function cancelIssuance(uint256 nonce) external whenNotPaused nonReentrant {
-        // require(!factoryStorage.issuanceRequestCancelled(nonce), "request already cancelled");
         if (factoryStorage.issuanceRequestCancelled(nonce)) revert OrderAlreadyCancelled();
 
         address requester = factoryStorage.issuanceRequesterByNonce(nonce);
@@ -239,7 +235,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         _unpause();
     }
 
-    function increaseCurrentRoundId() external onlyOwnerOrOperator {
-        factoryStorage.increaseIssuanceRoundId();
-    }
+    // function increaseCurrentRoundId() external onlyOwnerOrOperator {
+    //     factoryStorage.increaseIssuanceRoundId();
+    // }
 }
