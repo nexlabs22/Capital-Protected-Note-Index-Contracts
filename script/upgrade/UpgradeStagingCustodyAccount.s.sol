@@ -27,7 +27,7 @@ contract UpgradeStagingCustodyAccount is Script {
             revert("Unsupported target chain");
         }
 
-        Upgrades.upgradeProxy(stagingCustodyAccountProxyAddress, "StagingCustodyAccountV5.sol", "", owner);
+        Upgrades.upgradeProxy(stagingCustodyAccountProxyAddress, "StagingCustodyAccountV9.sol", "", owner);
 
         address implAddrV2 = Upgrades.getImplementationAddress(stagingCustodyAccountProxyAddress);
 

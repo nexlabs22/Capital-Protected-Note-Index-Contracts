@@ -21,7 +21,8 @@ error InvalidRoundId();
 error WrongETHAmount();
 error RedemptionAmountIsZero();
 
-contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+/// @custom:oz-upgrades-from StagingCustodyAccountV6
+contract StagingCustodyAccountV7 is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
     IndexFactoryStorage factoryStorage;
@@ -134,11 +135,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
             factoryStorage.getIssuanceFee(address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount);
         if (msg.value < expected) revert WrongETHAmount();
         uint256 usdcFee = FeeCalculation.calculateFee(usdcAmount, factoryStorage.feeRate());
+
         factoryStorage.usdc().approve(riskAssetFactoryAddress, usdcAmount + usdcFee);
-        // factoryStorage.usdc().approve(riskAssetFactoryAddress, usdcAmount);
         IRiskAssetFactory(riskAssetFactoryAddress).issuanceIndexTokens{value: msg.value}(
             address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
         );
+        // IRiskAssetFactory(riskAssetFactoryAddress).issuanceIndexTokens{value: msg.value}(
+        //     address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
+        // );
         emit IssuanceRiskAsset(usdcAmount, block.timestamp);
     }
 
@@ -150,7 +154,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
     ) public payable onlyOwnerOrOperator {
         uint256 expected = factoryStorage.getRedemptionFee(amountIn);
         if (msg.value < expected) revert WrongETHAmount();
-        // factoryStorage.usdc().approve(riskAssetFactoryAddress, amountIn);
         factoryStorage.usdc().approve(riskAssetFactoryAddress, amountIn);
         IRiskAssetFactory(riskAssetFactoryAddress).redemption{value: msg.value}(
             amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
@@ -199,7 +202,9 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
                 address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForRiskAsset
             );
             if (msg.value < fee) revert WrongETHAmount();
-            issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
+            // issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
+            uint256 usdcFee = FeeCalculation.calculateFee(usdcAmountForRiskAsset, factoryStorage.feeRate());
+            issuanceRiskAsset(usdcAmountForRiskAsset - usdcFee, _tokenInPath, _tokenInFees);
         } else {
             require(msg.value == 0, "SCA: unexpected ETH");
         }
@@ -262,77 +267,58 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         nonReentrant
         onlyOwnerOrOperator
     {
-        // // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
-        // // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
-        // if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
-        // uint256 prev = roundId - 1;
-        // if (roundId > 1) {
-        //     require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
-        //     require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
-        // }
-        // require(factoryStorage.redemptionRoundActive(roundId), "Round not active");
-        // require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
+        // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
+        // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
+        if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
+        uint256 prev = roundId - 1;
+        if (roundId > 1) {
+            require(!factoryStorage.redemptionRoundActive(prev), "Prev redemption round active");
+            require(factoryStorage.redemptionIsCompleted(prev), "Prev redemption not completed");
+        }
+        require(factoryStorage.redemptionRoundActive(roundId), "Round not active");
+        require(!factoryStorage.redemptionIsCompleted(roundId), "Round already completed");
 
-        // uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);
-        // if (totalIdxThisRound == 0) revert RedemptionAmountIsZero();
-        // if (!factoryStorage.redemptionRoundActive(roundId)) {
-        //     revert("batch not started");
-        // }
-        // factoryStorage.setRedemptionRoundActive(roundId, false);
+        uint256 totalIdxThisRound = factoryStorage.totalRedemptionByRound(roundId);
+        if (totalIdxThisRound == 0) revert RedemptionAmountIsZero();
+        if (!factoryStorage.redemptionRoundActive(roundId)) {
+            revert("batch not started");
+        }
+        factoryStorage.setRedemptionRoundActive(roundId, false);
 
-        // uint256 supplyBefore = factoryStorage.indexToken().totalSupply();
-        // require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
-        // uint256 pct1e18 = (totalIdxThisRound * 1e18) / supplyBefore;
+        uint256 supplyBefore = factoryStorage.indexToken().totalSupply();
+        require(supplyBefore > totalIdxThisRound, "IDX supply is zero");
+        uint256 pct1e18 = (totalIdxThisRound * 1e18) / supplyBefore;
 
-        // uint256 currentList = factoryStorage.functionsOracle().totalCurrentList();
-        // for (uint256 i = 0; i < currentList; ++i) {
-        //     address comp = factoryStorage.functionsOracle().currentList(i);
-        //     uint8 aType = factoryStorage.functionsOracle().tokenAssetType(comp);
-        //     uint256 slice = (IERC20(comp).balanceOf(address(factoryStorage.vault())) * pct1e18) / 1e18;
+        uint256 currentList = factoryStorage.functionsOracle().totalCurrentList();
+        for (uint256 i; i < currentList; ++i) {
+            address comp = factoryStorage.functionsOracle().currentList(i);
+            uint256 balance = IERC20(comp).balanceOf(address(factoryStorage.vault()));
+            if (balance == 0) continue;
 
-        //     if (slice == 0) continue;
+            uint256 slice = balance * pct1e18 / 1e18;
+            if (slice > 0) {
+                factoryStorage.vault().withdrawFunds(comp, address(this), slice);
+            }
+        }
 
-        //     factoryStorage.vault().withdrawFunds(comp, address(this), slice);
+        uint256 bondBalance = IERC20(bond).balanceOf(address(factoryStorage.vault()));
+        uint256 bondSlice = bondBalance * pct1e18 / 1e18;
+        if (bondSlice > 0) {
+            factoryStorage.vault().withdrawFunds(bond, nexBot, bondSlice);
+        }
 
-        //     if (aType == 1) {
-        //         uint256 fee = factoryStorage.getRedemptionFee(slice);
-        //         if (msg.value < fee) revert WrongETHAmount();
-        //         redemptionRiskAsset(slice, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
-        //         // msg.value -= fee;
-        //     } else {
-        //         // bond → forward straight to nex-bot
-        //         IERC20(comp).safeTransfer(nexBot, slice);
-        //     }
-        // }
-        // // for (uint256 i; i < currentList; ++i) {
-        // //     address comp = factoryStorage.functionsOracle().currentList(i);
-        // //     uint256 balance = IERC20(comp).balanceOf(address(factoryStorage.vault()));
-        // //     if (balance == 0) continue;
+        uint256 riskAssetAmount = IERC20(address(factoryStorage.indexToken())).balanceOf(address(this));
+        if (riskAssetAmount > 0) {
+            uint256 fee = factoryStorage.getRedemptionFee(riskAssetAmount);
+            if (msg.value < fee) revert WrongETHAmount();
+            redemptionRiskAsset(riskAssetAmount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
+        }
 
-        // //     uint256 slice = balance * pct1e18 / 1e18;
-        // //     if (slice > 0) {
-        // //         factoryStorage.vault().withdrawFunds(comp, address(this), slice);
-        // //     }
-        // // }
+        factoryStorage.indexToken().burn(address(this), totalIdxThisRound);
+        factoryStorage.increaseRedemptionRoundId();
+        factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), false);
 
-        // // uint256 bondBalance = IERC20(bond).balanceOf(address(factoryStorage.vault()));
-        // // uint256 bondSlice = bondBalance * pct1e18 / 1e18;
-        // // if (bondSlice > 0) {
-        // //     factoryStorage.vault().withdrawFunds(bond, nexBot, bondSlice);
-        // // }
-
-        // // uint256 riskAssetAmount = IERC20(address(factoryStorage.indexToken())).balanceOf(address(this));
-        // // if (riskAssetAmount > 0) {
-        // //     uint256 fee = factoryStorage.getRedemptionFee(riskAssetAmount);
-        // //     if (msg.value < fee) revert WrongETHAmount();
-        // //     redemptionRiskAsset(riskAssetAmount, address(factoryStorage.usdc()), tokenOutPath, tokenOutFees);
-        // // }
-
-        // factoryStorage.indexToken().burn(address(this), totalIdxThisRound);
-        // factoryStorage.increaseRedemptionRoundId();
-        // factoryStorage.setRedemptionRoundActive(factoryStorage.redemptionRoundId(), false);
-
-        // emit RedemptionRequested(totalIdxThisRound, block.timestamp);
+        emit RedemptionRequested(totalIdxThisRound, block.timestamp);
     }
 
     function completeRedemption(uint256 roundId, uint256 usdcFromBond, uint256 usdcFromRiskAsset) external onlyNexBot {
@@ -399,11 +385,5 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
                 distributed += owed;
             }
         }
-    }
-
-    function withRiskAsset(address token, address to, uint256 amount) public onlyOwner {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(amount <= balance, "Not enought balance");
-        IERC20(token).safeTransfer(to, amount);
     }
 }

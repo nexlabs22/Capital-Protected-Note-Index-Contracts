@@ -27,8 +27,8 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     }
 
     struct Ctx {
-        uint256 bondPrice18;
-        uint256 cryptoPrice18;
+        uint256 bondPrice;
+        uint256 cryptoPrice;
         Vault vault;
         StagingCustodyAccount sca;
         IERC20 usdc;
@@ -104,16 +104,16 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     }
 
     function firstRebalanceAction(
-        uint256 bondPrice18,
-        uint256 cryptoPrice18,
+        uint256 bondPrice,
+        uint256 cryptoPrice,
         address[] calldata tokenInPath,
         uint24[] calldata tokenInFees
     ) external payable nonReentrant whenNotPaused onlyOwnerOrOperator returns (uint256 nonce) {
         pauseIndexFactory();
 
         Ctx memory ctx = Ctx({
-            bondPrice18: bondPrice18,
-            cryptoPrice18: cryptoPrice18,
+            bondPrice: bondPrice,
+            cryptoPrice: cryptoPrice,
             vault: factoryStorage.vault(),
             sca: factoryStorage.sca(),
             usdc: factoryStorage.usdc(),
@@ -126,7 +126,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         RebalanceBatch storage batch = _rebalanceBatches[nonce];
         require(!batch.firstDone, "rebalance: phase-1 done");
 
-        uint256 portfolioValue = factoryStorage.getPortfolioValue(bondPrice18, cryptoPrice18);
+        uint256 portfolioValue = factoryStorage.getPortfolioValue(bondPrice, cryptoPrice);
 
         uint256 currentList = functionsOracle.totalCurrentList();
         address[] memory soldToken = new address[](currentList);
@@ -299,7 +299,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         internal
         returns (uint256 soldQty18)
     {
-        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
+        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.bondPrice;
 
         uint256 avail = IERC20(bondToken).balanceOf(address(ctx.vault));
         soldQty18 = rawQty18 > avail ? avail : rawQty18;
@@ -317,7 +317,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         internal
         returns (uint256 soldQty18)
     {
-        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
+        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.cryptoPrice;
 
         uint256 avail = IERC20(riskAssetToken).balanceOf(address(ctx.vault));
         soldQty18 = rawQty18 > avail ? avail : rawQty18;
