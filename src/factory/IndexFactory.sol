@@ -92,7 +92,7 @@ contract IndexFactory is Initializable, OwnableUpgradeable, PausableUpgradeable,
         _disableInitializers();
     }
 
-    function issuanceIndexToken(
+    function issuanceIndexTokens(
         address _tokenIn,
         address[] memory _tokenInPath,
         uint24[] memory _tokenInFees,

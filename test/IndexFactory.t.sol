@@ -190,7 +190,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
     //     deal(address(usdc), alice, 20e18);
     //     vm.startPrank(alice);
     //     IERC20(usdc).approve(address(factory), inputAmount + 1e16);
-    //     factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inputAmount);
+    //     factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inputAmount);
     //     vm.stopPrank();
 
     //     vm.startPrank(bob);
@@ -207,7 +207,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.expectEmit(true, true, true, true);
         emit IndexFactory.RequestIssuance(store.issuanceRoundId(), 1, alice, address(usdc), inAmt, fee, block.timestamp);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
 
         assertEq(nonce, 1);
         assertEq(factory.issuanceNonce(), 1);
@@ -252,7 +252,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         emit IndexFactory.RequestIssuance(
             store.issuanceRoundId(), 1, alice, address(usdc), amount, fee, block.timestamp
         );
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amount);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amount);
 
         console.log("Nex Bot balance After: ", address(nexBot).balance);
 
@@ -304,7 +304,8 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 fee = (amt * 10) / 10000;
 
         vm.startPrank(alice);
-        uint256 n = factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        uint256 n =
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         assertEq(n, 1);
@@ -326,7 +327,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         uint256 before = usdc.balanceOf(address(feeVault));
         vm.startPrank(alice);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         uint256 afterBal = usdc.balanceOf(address(feeVault));
@@ -349,7 +350,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         console.log("Nex bot balance before issuance: ", address(nexBot).balance);
 
         vm.startPrank(alice);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), inAmt);
         assertEq(usdc.balanceOf(address(sca)), inAmt);
         vm.stopPrank();
 
@@ -405,15 +406,15 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         console.log("Nex bot balance before issuance: ", address(nexBot).balance);
 
         vm.startPrank(alice);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
         vm.stopPrank();
 
         vm.startPrank(carol);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
         vm.stopPrank();
 
         console.log("Nex bot balance after issuance: ", address(nexBot).balance);
@@ -467,15 +468,15 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         // uint256 totalUSDCin = aAmt + bAmt + cAmt;
 
         vm.startPrank(alice);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), aAmt);
         vm.stopPrank();
 
         vm.startPrank(bob);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), bAmt);
         vm.stopPrank();
 
         vm.startPrank(carol);
-        factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
+        factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), cAmt);
         vm.stopPrank();
 
         vm.prank(nexBot);
@@ -552,17 +553,17 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         vm.stopPrank();
     }
 
-    function test_issuanceIndexToken_revertsOnZeroAmount() public {
+    function test_issuanceIndexTokens_revertsOnZeroAmount() public {
         address tokenIn = address(store.usdc());
         address[] memory tokenInPath = new address[](0);
         uint24[] memory tokenInFees = new uint24[](0);
         uint256 inputAmount = 0;
 
         vm.expectRevert(ZeroAmount.selector);
-        factory.issuanceIndexToken{value: 0}(tokenIn, tokenInPath, tokenInFees, inputAmount);
+        factory.issuanceIndexTokens{value: 0}(tokenIn, tokenInPath, tokenInFees, inputAmount);
     }
 
-    function test_issuanceIndexToken_revertsOnWrongETHAmount() public {
+    function test_issuanceIndexTokens_revertsOnWrongETHAmount() public {
         address tokenIn = address(store.usdc());
         address[] memory tokenInPath = new address[](0);
         uint24[] memory tokenInFees = new uint24[](0);
@@ -576,7 +577,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
         vm.startPrank(alice);
         vm.expectRevert(WrongETHAmount.selector);
-        factory.issuanceIndexToken{value: wrongEthFee}(tokenIn, tokenInPath, tokenInFees, inputAmount);
+        factory.issuanceIndexTokens{value: wrongEthFee}(tokenIn, tokenInPath, tokenInFees, inputAmount);
         vm.stopPrank();
     }
 
@@ -584,7 +585,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         vm.prank(address(factory));
@@ -601,7 +602,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         vm.startPrank(bob);
@@ -614,7 +615,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         vm.startPrank(alice);
@@ -644,7 +645,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         vm.prank(address(factory));
@@ -661,7 +662,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         uint256 amt = 10_000 * ONE_USDC;
         vm.startPrank(alice);
         uint256 nonce =
-            factory.issuanceIndexToken{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
+            factory.issuanceIndexTokens{value: 10}(address(store.usdc()), new address[](0), new uint24[](0), amt);
         vm.stopPrank();
 
         address scaAddr = address(sca);

@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 import "forge-std/Script.sol";
-import {FunctionsOracle} from "../../../../src/factory/FunctionsOracle.sol";
+import {FunctionsOracle} from "../../src/factory/FunctionsOracle.sol";
 
 contract PokeOracle is Script, FunctionsOracle {
     function run() external {

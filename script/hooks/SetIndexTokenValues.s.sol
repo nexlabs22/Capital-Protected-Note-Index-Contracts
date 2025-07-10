@@ -4,7 +4,7 @@ pragma solidity 0.8.25;
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/Test.sol";
 
-import "../../../../src/token//IndexToken.sol";
+import "../../../../src/token/IndexToken.sol";
 
 contract SetIndexTokenValues is Script {
     address indexFactoryProxy;

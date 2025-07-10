@@ -12,8 +12,8 @@ contract UpgradeIndexFactoryStorage is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        // string memory targetChain = "sepolia";
-        string memory targetChain = "arbitrum_mainnet";
+        string memory targetChain = "sepolia";
+        // string memory targetChain = "arbitrum_mainnet";
 
         address indexFactoryStorageProxyAddress;
 
@@ -27,7 +27,7 @@ contract UpgradeIndexFactoryStorage is Script {
             revert("Unsupported target chain");
         }
 
-        Upgrades.upgradeProxy(indexFactoryStorageProxyAddress, "IndexFactoryStorage.sol", "", owner);
+        Upgrades.upgradeProxy(indexFactoryStorageProxyAddress, "IndexFactoryStorageV2.sol", "", owner);
 
         address implAddrV2 = Upgrades.getImplementationAddress(indexFactoryStorageProxyAddress);
 
