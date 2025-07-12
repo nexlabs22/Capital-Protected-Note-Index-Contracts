@@ -18,8 +18,8 @@ error InvalidAddress();
 error ZeroAmount();
 error UnsettledRound(uint256 previousRoundId);
 
-/// @custom:oz-upgrades-from IndexFactoryStorage
-contract IndexFactoryStorageV2 is Initializable, OwnableUpgradeable {
+/// @custom:oz-upgrades-from IndexFactoryStorageV2
+contract IndexFactoryStorageV3 is Initializable, OwnableUpgradeable {
     IndexToken public indexToken;
     Vault public vault;
     IndexFactory public indexFactory;

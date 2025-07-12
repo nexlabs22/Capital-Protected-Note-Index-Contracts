@@ -189,7 +189,7 @@ contract IndexFactoryStorageTest is OlympixUnitTest("IndexFactoryStorage") {
         DummyOracle oracle = new DummyOracle();
 
         IndexFactoryStorage impl = new IndexFactoryStorage();
-        vm.expectRevert("Invalid _indexFactory address");
+        vm.expectRevert("Invalid _riskAssetFactoryAddress address");
         new ERC1967Proxy(
             address(impl),
             abi.encodeCall(

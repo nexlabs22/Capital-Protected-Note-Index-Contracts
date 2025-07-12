@@ -18,6 +18,7 @@ import {FunctionsOracle} from "../src/factory/FunctionsOracle.sol";
 import {IRiskAssetFactory} from "../src/interfaces/IRiskAssetFactory.sol";
 import {FeeVault} from "../src/vault/FeeVault.sol";
 import {OlympixUnitTest} from "./OlympixUnitTest.sol";
+import "../src/libraries/FeeCalculation.sol";
 
 error ZeroAmount();
 error OrderAlreadyCancelled();
@@ -217,13 +218,13 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function test_increaseCurrentRoundId_FailWhenSenderIsNotOwnerOrOperator() public {
         vm.startPrank(alice);
-        vm.expectRevert("Caller is not the owner or operator");
+        vm.expectRevert("Caller is not a factory contract");
         store.increaseIssuanceRoundId();
         vm.stopPrank();
     }
 
     function test_increaseCurrentRoundId_SuccessfulIncreaseCurrentRoundId() public {
-        vm.prank(address(this));
+        vm.prank(address(factory));
         store.increaseIssuanceRoundId();
         assertEq(store.issuanceRoundId(), 2);
     }
@@ -237,7 +238,7 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
 
     function test_increaseRoundId_requiresOwnerOrOperator() public {
         vm.prank(alice);
-        vm.expectRevert("Caller is not the owner or operator");
+        vm.expectRevert("Caller is not a factory contract");
         store.increaseIssuanceRoundId();
     }
 
@@ -374,9 +375,11 @@ contract IndexFactoryTest is OlympixUnitTest("IndexFactory") {
         sca.completeIssuance(1, bondPrice, c5Price);
         vm.stopPrank();
 
+        uint256 usdcFee = FeeCalculation.calculateFee(inAmt, store.feeRate());
+
         // assertEq(idx.balanceOf(alice), expectedMint);
         assertEq(bond.balanceOf(address(vault)), bernQty);
-        assertEq(idxc5.balanceOf(address(vault)), inAmt / 5);
+        assertEq(idxc5.balanceOf(address(vault)), inAmt / 5 - usdcFee);
 
         assertTrue(store.issuanceIsCompleted(1));
     }

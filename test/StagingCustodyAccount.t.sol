@@ -618,7 +618,7 @@ contract StagingCustodyAccountTest is OlympixUnitTest("StagingCustodyAccount") {
         StagingCustodyAccount scaImpl = new StagingCustodyAccount();
         StagingCustodyAccount scaProxy = StagingCustodyAccount(address(new ERC1967Proxy(address(scaImpl), "")));
 
-        vm.expectRevert("Invalid address for _indexFactoryStorageAddress");
+        vm.expectRevert(ZeroAddress.selector);
         scaProxy.initialize(address(0));
     }
 

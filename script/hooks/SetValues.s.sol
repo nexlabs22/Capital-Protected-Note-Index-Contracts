@@ -12,5 +12,6 @@ contract SetValue is Script {
         // set sca as operator the index factory in FunctionsOracle
         // set balancer as operator in vault
         // set balancer as operator in FunctionsOracle
+        // set index factory balancer in FunctionsOracle
     }
 }

@@ -44,7 +44,8 @@ contract OnchainTest is Script {
 
         // setMockFulFill();
         // firstRebalanceAction();
-        secondRebalanceAction();
+        // secondRebalanceAction();
+        completeRebalance();
 
         // issuanceIndexTokens();
 
@@ -159,14 +160,14 @@ contract OnchainTest is Script {
     }
 
     function firstRebalanceAction() public {
-        uint256 redemptionFee = IRiskAssetFactory(payable(cr5FactoryAddress)).getRedemptionFee(70000000000000000);
+        uint256 redemptionFee = IRiskAssetFactory(payable(cr5FactoryAddress)).getRedemptionFee(30000000000000000);
         address[] memory path = new address[](2);
         path[0] = address(weth);
         path[1] = address(weth);
         uint24[] memory fees = new uint24[](1);
         fees[0] = 3000;
-        IndexFactoryBalancer(payable(indexFactoryBalancer)).firstRebalanceAction{value: 0}(
-            6400000000000000000, 136860000000000000000, path, fees
+        IndexFactoryBalancer(payable(indexFactoryBalancer)).firstRebalanceAction{value: redemptionFee}(
+            6400000000000000000, 140430000000000000000, path, fees
         );
     }
 
@@ -179,7 +180,11 @@ contract OnchainTest is Script {
         fees[0] = 3000;
         uint256 issuanceFee =
             IRiskAssetFactory(payable(cr5FactoryAddress)).getIssuanceFee(address(usdc), path, fees, inputAmount);
-        IndexFactoryBalancer(payable(indexFactoryBalancer)).secondRebalanceAction{value: issuanceFee}(1, path, fees);
+        IndexFactoryBalancer(payable(indexFactoryBalancer)).secondRebalanceAction{value: 0}(2, path, fees);
+    }
+
+    function completeRebalance() public {
+        IndexFactoryBalancer(payable(indexFactoryBalancer)).completeRebalanceActions(2);
     }
 
     function setMockFulFill() public {
@@ -198,14 +203,14 @@ contract OnchainTest is Script {
         tokens[0] = bondToken;
         tokens[1] = riskAsset;
 
-        // mktShare[0] = 80e18; // 80 %
-        // mktShare[1] = 20e18; // 20 %
+        mktShare[0] = 80e18; // 80 %
+        mktShare[1] = 20e18; // 20 %
 
         // mktShare[0] = 50e18; // 50 %
         // mktShare[1] = 50e18; // 50 %
 
-        mktShare[0] = 60e18; // 60 %
-        mktShare[1] = 40e18; // 40 %
+        // mktShare[0] = 60e18; // 60 %
+        // mktShare[1] = 40e18; // 40 %
 
         // bytes32 dummyRequestId = bytes32(uint256(1)); // any non-zero value is fine
         // bytes memory response = abi.encode(assetType, tokens, mktShare);
