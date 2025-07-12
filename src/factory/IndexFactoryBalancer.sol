@@ -10,11 +10,12 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 
 import {IndexFactoryStorage} from "./IndexFactoryStorage.sol";
 import {FunctionsOracle} from "./FunctionsOracle.sol";
-import {IndexFactory} from "./IndexFactory.sol";
-import {IndexToken} from "../token/IndexToken.sol";
 import {Vault} from "../vault/Vault.sol";
 import {StagingCustodyAccount} from "../SCA/StagingCustodyAccount.sol";
 import {IRiskAssetFactory} from "../interfaces/IRiskAssetFactory.sol";
+import {FeeCalculation} from "../libraries/FeeCalculation.sol";
+
+error WrongETHAmount();
 
 contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
@@ -30,9 +31,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         uint256 bondPrice;
         uint256 cryptoPrice;
         Vault vault;
-        StagingCustodyAccount sca;
         IERC20 usdc;
-        address curToken;
         address[] path;
         uint24[] poolFees;
     }
@@ -45,7 +44,8 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
 
     IndexFactoryStorage public factoryStorage;
     FunctionsOracle public functionsOracle;
-    uint256 constant ONE_BPS_1e18 = 100e18;
+
+    uint256 public constant ONE_BPS_1e18 = 100e18;
     uint256 public rebalanceNonce;
 
     mapping(uint256 => RebalanceBatch) private _rebalanceBatches;
@@ -53,33 +53,18 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     event FirstRebalanceAction(
         uint256 indexed nonce, address[] tokensSold, uint256[] amountsSold, uint256 usdcExpected, uint256 time
     );
-    event SecondRebalanceAction(uint256 nonce, uint256 time);
-    event CompleteRebalanceActions(uint256 nonce, uint256 time);
-    event IssuanceRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
-    event RedemptionRiskAssetForRebalance(uint256 indexed amount, uint256 timestamp);
+    event SecondRebalanceAction(uint256 batchId, uint256 time);
+    event CompleteRebalanceActions(uint256 batchId, uint256 time);
+    event IssuanceRiskAssetForRebalance(uint256 amount, uint256 timestamp);
+    event RedemptionRiskAssetForRebalance(uint256 amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
             msg.sender == owner() || factoryStorage.functionsOracle().isOperator(msg.sender)
-                || msg.sender == address(factoryStorage.factoryBalancer()) || msg.sender == factoryStorage.nexBot(),
-            "Caller is not the owner or operator"
+                || msg.sender == factoryStorage.nexBot(),
+            "balancer: only owner / operator / bot"
         );
         _;
-    }
-
-    modifier onlyNexBot() {
-        require(msg.sender == factoryStorage.nexBot(), "Caller is not the NEX bot");
-        _;
-    }
-
-    function initialize(address _factoryStorage, address _functionsOracle) external initializer {
-        require(_factoryStorage != address(0), "invalid token address");
-        require(_functionsOracle != address(0), "invalid functions oracle address");
-        factoryStorage = IndexFactoryStorage(_factoryStorage);
-        functionsOracle = FunctionsOracle(_functionsOracle);
-        __Ownable_init(msg.sender);
-        __Pausable_init();
-        __ReentrancyGuard_init();
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -87,20 +72,16 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         _disableInitializers();
     }
 
-    function setIndexFactoryStorage(address _indexFactoryStorage) public onlyOwner returns (bool) {
-        factoryStorage = IndexFactoryStorage(_indexFactoryStorage);
-        return true;
-    }
+    function initialize(address _storage, address _oracle) external initializer {
+        require(_storage != address(0), "balancer: zero storage");
+        require(_oracle != address(0), "balancer: zero oracle");
 
-    function setFunctionsOracle(address _functionsOracle) public onlyOwner returns (bool) {
-        functionsOracle = FunctionsOracle(_functionsOracle);
-        return true;
-    }
+        factoryStorage = IndexFactoryStorage(_storage);
+        functionsOracle = FunctionsOracle(_oracle);
 
-    function withdrawBondForNexBot(uint256 amount) public onlyOwnerOrOperator {
-        uint256 bondBalance = IERC20(factoryStorage.bond()).balanceOf(address(this));
-        require(bondBalance >= amount, "Invalid amount");
-        IERC20(factoryStorage.bond()).safeTransfer(address(factoryStorage.nexBot()), amount);
+        __Ownable_init(msg.sender);
+        __Pausable_init();
+        __ReentrancyGuard_init();
     }
 
     function firstRebalanceAction(
@@ -115,9 +96,7 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
             bondPrice: bondPrice,
             cryptoPrice: cryptoPrice,
             vault: factoryStorage.vault(),
-            sca: factoryStorage.sca(),
             usdc: factoryStorage.usdc(),
-            curToken: address(0),
             path: tokenInPath,
             poolFees: tokenInFees
         });
@@ -126,31 +105,28 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         RebalanceBatch storage batch = _rebalanceBatches[nonce];
         require(!batch.firstDone, "rebalance: phase-1 done");
 
-        uint256 portfolioValue = factoryStorage.getPortfolioValue(bondPrice, cryptoPrice);
-
-        uint256 currentList = functionsOracle.totalCurrentList();
-        address[] memory soldToken = new address[](currentList);
-        uint256[] memory soldQty = new uint256[](currentList);
+        uint256 listLen = functionsOracle.totalCurrentList();
+        address[] memory soldToken = new address[](listLen);
+        uint256[] memory soldQty = new uint256[](listLen);
         uint256 soldLen;
+        uint256 totalEthFee;
 
-        uint256 totalRedemptionFee;
+        for (uint256 i; i < listLen; ++i) {
+            address tok = functionsOracle.currentList(i);
+            (bool sold, uint256 qty18) = _processToken(nonce, tok, ctx);
 
-        for (uint256 i; i < currentList; ++i) {
-            address token = functionsOracle.currentList(i);
-
-            (bool didSell, uint256 qty18) = _processToken(nonce, token, portfolioValue, ctx);
-
-            if (didSell) {
-                soldToken[soldLen] = token;
+            if (sold) {
+                soldToken[soldLen] = tok;
                 soldQty[soldLen] = qty18;
                 ++soldLen;
-            }
 
-            if (functionsOracle.tokenAssetType(token) == 1 && qty18 > 0) {
-                totalRedemptionFee += factoryStorage.getRedemptionFee(qty18);
+                if (functionsOracle.tokenAssetType(tok) == 1 && qty18 > 0) {
+                    totalEthFee += factoryStorage.getRedemptionFee(qty18);
+                }
             }
         }
-        require(msg.value == totalRedemptionFee, "balancer: wrong ETH fee");
+
+        require(msg.value == totalEthFee, "balancer: wrong ETH");
 
         batch.firstDone = true;
 
@@ -169,38 +145,55 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         onlyOwnerOrOperator
     {
         RebalanceBatch storage batch = _rebalanceBatches[batchId];
-        require(batch.firstDone, "rebalance: phase-1 not done");
-        require(!batch.secondDone, "rebalance: phase-2 already done");
+        require(batch.firstDone && !batch.secondDone, "rebalance: bad phase");
 
         IERC20 usdc = factoryStorage.usdc();
-        uint256 balance = usdc.balanceOf(address(this));
-        if (balance == 0) revert("no USDC to deploy");
+        uint256 bal = usdc.balanceOf(address(this));
+        require(bal > 0, "balancer: no USDC");
 
-        Vars memory vars;
-        vars.usdcBalance = balance;
+        address bond = factoryStorage.bond();
+        // address riskAsset = address(factoryStorage.riskAssetTokenAddress());
 
-        address bondToken = factoryStorage.bond();
-        address riskAssetToken = address(factoryStorage.indexToken());
+        bool bondDeficit = false;
+        bool riskDeficit = false;
 
-        vars.bondDeficit =
-            functionsOracle.tokenCurrentMarketShare(bondToken) < functionsOracle.tokenOracleMarketShare(bondToken);
+        for (uint256 i; i < factoryStorage.functionsOracle().totalCurrentList(); ++i) {
+            address token = factoryStorage.functionsOracle().currentList(i);
+            uint256 current = factoryStorage.functionsOracle().tokenCurrentMarketShare(token);
+            uint256 oracle = factoryStorage.functionsOracle().tokenOracleMarketShare(token);
 
-        vars.riskAssetDeficit = functionsOracle.tokenCurrentMarketShare(riskAssetToken)
-            < functionsOracle.tokenOracleMarketShare(riskAssetToken);
+            if (factoryStorage.functionsOracle().tokenAssetType(token) == 1) {
+                riskDeficit = current < oracle;
+                // riskDeficit = true;
+            } else {
+                bondDeficit = current < oracle;
+                // bondDeficit = true;
+            }
+            // if (factoryStorage.functionsOracle().tokenAssetType(token) == 1 && current < oracle) {
+            //     riskDeficit = true;
+            // } else {
+            //     bondDeficit = true;
+            // }
+        }
 
-        if (vars.bondDeficit) {
-            usdc.safeTransfer(factoryStorage.nexBot(), vars.usdcBalance);
-            batch.tokenDelta[bondToken] = 0;
-        } else if (vars.riskAssetDeficit) {
-            uint256 fee = factoryStorage.getIssuanceFee(
-                address(factoryStorage.usdc()), tokenInPath, tokenInFees, vars.usdcBalance
-            );
-            require(msg.value == fee, "unexpected ETH fee");
-            _mintCrypto5(vars.usdcBalance, tokenInPath, tokenInFees, msg.value);
-            batch.tokenDelta[riskAssetToken] = 0;
+        // bool bondDeficit = functionsOracle.tokenCurrentMarketShare(bond) < functionsOracle.tokenOracleMarketShare(bond);
+
+        // bool riskDeficit =
+        //     functionsOracle.tokenCurrentMarketShare(riskAsset) < functionsOracle.tokenOracleMarketShare(riskAsset);
+
+        if (bondDeficit) {
+            usdc.safeTransfer(factoryStorage.nexBot(), bal);
+            batch.tokenDelta[bond] = 0;
+            require(msg.value == 0, "balancer: no ETH needed");
+        } else if (riskDeficit) {
+            // uint256 fee = factoryStorage.getIssuanceFee(address(usdc), tokenInPath, tokenInFees, bal);
+            // require(msg.value == fee, "balancer: bad ETH");
+            issuanceRiskAsset(bal, tokenInPath, tokenInFees);
+            // _mintCrypto5(bal, tokenInPath, tokenInFees, fee);
+            // batch.tokenDelta[riskAsset] = 0;
         } else {
-            require(msg.value == 0, "unexpected ETH fee");
-            usdc.safeTransfer(address(factoryStorage.vault()), vars.usdcBalance);
+            require(msg.value == 0, "balancer: unexpected ETH");
+            usdc.safeTransfer(address(factoryStorage.vault()), bal);
         }
 
         batch.secondDone = true;
@@ -211,16 +204,12 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         RebalanceBatch storage batch = _rebalanceBatches[batchId];
         require(batch.secondDone, "rebalance: phase-2 not done");
 
-        Vault vault = factoryStorage.vault();
+        Vault v = factoryStorage.vault();
         uint256 len = functionsOracle.totalCurrentList();
-
-        // for each token in the index, send *all* of the Balancer's balance into the Vault
-        for (uint256 i = 0; i < len; ++i) {
-            address token = functionsOracle.currentList(i);
-            uint256 bal = IERC20(token).balanceOf(address(this));
-            if (bal > 0) {
-                IERC20(token).safeTransfer(address(vault), bal);
-            }
+        for (uint256 i; i < len; ++i) {
+            address tok = functionsOracle.currentList(i);
+            uint256 bal = IERC20(tok).balanceOf(address(this));
+            if (bal > 0) IERC20(tok).safeTransfer(address(v), bal);
         }
 
         factoryStorage.resetAllTokenPendingRebalanceAmount(batchId);
@@ -229,26 +218,73 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         emit CompleteRebalanceActions(batchId, block.timestamp);
     }
 
-    // function completeRebalanceActions(uint256 batchId) external nonReentrant onlyOwnerOrOperator {
-    //     RebalanceBatch storage batch = _rebalanceBatches[batchId];
-    //     require(batch.secondDone, "rebalance: phase-2 not done");
+    function _processToken(uint256 nonce, address token, Ctx memory ctx)
+        internal
+        returns (bool sold, uint256 qty18Sold)
+    {
+        uint256 curShare18 = functionsOracle.tokenCurrentMarketShare(token);
+        uint256 tgtShare18 = functionsOracle.tokenOracleMarketShare(token);
 
-    //     Vault vault = factoryStorage.vault();
-    //     uint256 currentlist = functionsOracle.totalCurrentList();
+        if (curShare18 <= tgtShare18) return (false, 0);
 
-    //     for (uint256 i; i < currentlist; ++i) {
-    //         address token = functionsOracle.currentList(i);
-    //         uint256 balance = IERC20(token).balanceOf(address(this));
-    //         if (balance > 0) IERC20(token).safeTransfer(address(vault), balance);
-    //     }
+        // uint256 shareDiff18 = curShare18 - tgtShare18;
+        // uint256 shareDiff18 = (tgtShare18 / curShare18) * 100e18;
+        uint256 shareDiff18 = ((curShare18 - tgtShare18) * 100e18) / curShare18;
 
-    //     factoryStorage.resetAllTokenPendingRebalanceAmount(batchId);
+        if (functionsOracle.tokenAssetType(token) == 0) {
+            qty18Sold = _sellBond(nonce, token, shareDiff18, ctx);
+        } else {
+            qty18Sold = _redeemRiskAsset(nonce, token, shareDiff18, ctx);
+        }
+        sold = qty18Sold > 0;
+    }
 
-    //     functionsOracle.updateCurrentList();
+    function _sellBond(uint256 nonce, address bondToken, uint256 shareDiff18, Ctx memory ctx)
+        internal
+        returns (uint256 soldQty18)
+    {
+        uint256 vaultBal = IERC20(bondToken).balanceOf(address(ctx.vault));
+        soldQty18 = (vaultBal * shareDiff18) / ONE_BPS_1e18;
+        if (soldQty18 == 0) return 0;
 
-    //     unpauseIndexFactory();
+        factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, soldQty18);
 
-    //     emit CompleteRebalanceActions(batchId, block.timestamp);
+        RebalanceBatch storage batch = _rebalanceBatches[nonce];
+        batch.tokenDelta[bondToken] = soldQty18;
+        batch.totalUsdcObtained += (soldQty18 * ctx.bondPrice) / 1e18;
+
+        uint256 pulled = ctx.vault.withdrawFunds(bondToken, address(this), soldQty18);
+        IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), pulled);
+    }
+
+    function _redeemRiskAsset(uint256 nonce, address riskToken, uint256 shareDiff18, Ctx memory ctx)
+        internal
+        returns (uint256 soldQty18)
+    {
+        uint256 vaultBal = IERC20(riskToken).balanceOf(address(ctx.vault));
+        soldQty18 = (vaultBal * shareDiff18) / ONE_BPS_1e18;
+        if (soldQty18 == 0) return 0;
+
+        factoryStorage.increaseTokenPendingRebalanceAmount(riskToken, nonce, soldQty18);
+
+        RebalanceBatch storage batch = _rebalanceBatches[nonce];
+        batch.tokenDelta[riskToken] = soldQty18;
+        batch.totalUsdcObtained += (soldQty18 * ctx.cryptoPrice) / 1e18;
+
+        ctx.vault.withdrawFunds(riskToken, address(this), soldQty18);
+
+        IERC20(riskToken).approve(factoryStorage.riskAssetFactoryAddress(), soldQty18);
+        uint256 ethFee = factoryStorage.getRedemptionFee(soldQty18);
+        this.redemptionRiskAsset{value: ethFee}(soldQty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+    }
+
+    // function _mintCrypto5(uint256 amountUsdc, address[] calldata path, uint24[] calldata fees, uint256 feeEth)
+    //     internal
+    // {
+    //     IERC20(factoryStorage.usdc()).safeTransfer(address(factoryStorage.sca()), amountUsdc);
+    //     factoryStorage.usdc().approve(factoryStorage.riskAssetFactoryAddress(), usdcAmount + usdcFee);
+
+    //     this.issuanceRiskAsset{value: feeEth}(amountUsdc - usdcFee, path, fees);
     // }
 
     function issuanceRiskAsset(uint256 usdcAmount, address[] calldata _tokenInPath, uint24[] calldata _tokenInFees)
@@ -256,11 +292,19 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         payable
         onlyOwnerOrOperator
     {
-        require(msg.value > 0, "BALANCER: no ETH attached");
+        uint256 expected =
+            factoryStorage.getIssuanceFee(address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount);
+        if (msg.value < expected) revert WrongETHAmount();
+        uint256 usdcFee = FeeCalculation.calculateFee(usdcAmount, factoryStorage.feeRate());
+
+        factoryStorage.usdc().approve(factoryStorage.riskAssetFactoryAddress(), usdcAmount + usdcFee);
         IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).issuanceIndexTokens{value: msg.value}(
-            address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
+            address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount - usdcFee
         );
-        emit IssuanceRiskAssetForRebalance(usdcAmount, block.timestamp);
+        // IRiskAssetFactory(riskAssetFactoryAddress).issuanceIndexTokens{value: msg.value}(
+        //     address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmount
+        // );
+        // emit IssuanceRiskAsset(usdcAmount, block.timestamp);
     }
 
     function redemptionRiskAsset(
@@ -269,134 +313,39 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
         address[] memory _tokenOutPath,
         uint24[] memory _tokenOutFees
     ) public payable onlyOwnerOrOperator {
-        require(msg.value > 0, "BALANCER: no ETH");
-
+        uint256 expected = factoryStorage.getRedemptionFee(amountIn);
+        if (msg.value < expected) revert WrongETHAmount();
+        factoryStorage.usdc().approve(factoryStorage.riskAssetFactoryAddress(), amountIn);
         IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).redemption{value: msg.value}(
             amountIn, _tokenOut, _tokenOutPath, _tokenOutFees
         );
-        emit RedemptionRiskAssetForRebalance(amountIn, block.timestamp);
+        // emit RedemptionRiskAsset(amountIn, block.timestamp);
     }
 
-    function _processToken(uint256 nonce, address token, uint256 nav18, Ctx memory ctx)
-        internal
-        returns (bool sold, uint256 qty18Sold)
-    {
-        uint256 currentMarketShare = functionsOracle.tokenCurrentMarketShare(token);
-        uint256 targetMarketShare = functionsOracle.tokenOracleMarketShare(token);
-        if (currentMarketShare <= targetMarketShare) return (false, 0);
-
-        uint256 usdCut18 = (nav18 * (currentMarketShare - targetMarketShare)) / ONE_BPS_1e18;
-
-        if (functionsOracle.tokenAssetType(token) == 0) {
-            qty18Sold = _sellBond(nonce, token, usdCut18, ctx);
-        } else {
-            qty18Sold = _redeemRiskAsset(nonce, token, usdCut18, ctx);
-        }
-        sold = true;
-    }
-
-    function _sellBond(uint256 nonce, address bondToken, uint256 usdCut18, Ctx memory ctx)
-        internal
-        returns (uint256 soldQty18)
-    {
-        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.bondPrice;
-
-        uint256 avail = IERC20(bondToken).balanceOf(address(ctx.vault));
-        soldQty18 = rawQty18 > avail ? avail : rawQty18;
-
-        factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, soldQty18);
-        RebalanceBatch storage batch = _rebalanceBatches[nonce];
-        batch.tokenDelta[bondToken] = soldQty18;
-        batch.totalUsdcObtained += usdCut18 * soldQty18 / rawQty18;
-
-        uint256 pulled = ctx.vault.withdrawFunds(bondToken, address(this), soldQty18);
-        IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), pulled);
-    }
-
-    function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
-        internal
-        returns (uint256 soldQty18)
-    {
-        uint256 rawQty18 = (usdCut18 * 1e18) / ctx.cryptoPrice;
-
-        uint256 avail = IERC20(riskAssetToken).balanceOf(address(ctx.vault));
-        soldQty18 = rawQty18 > avail ? avail : rawQty18;
-
-        factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, soldQty18);
-        RebalanceBatch storage batch = _rebalanceBatches[nonce];
-        batch.tokenDelta[riskAssetToken] = soldQty18;
-        batch.totalUsdcObtained += usdCut18 * soldQty18 / rawQty18;
-
-        ctx.vault.withdrawFunds(riskAssetToken, address(this), soldQty18);
-
-        IERC20(riskAssetToken).approve(factoryStorage.riskAssetFactoryAddress(), soldQty18);
-        uint256 ethFee = factoryStorage.getRedemptionFee(soldQty18);
-        this.redemptionRiskAsset{value: ethFee}(soldQty18, address(ctx.usdc), ctx.path, ctx.poolFees);
-    }
-
-    // function _redeemRiskAsset(uint256 nonce, address riskAssetToken, uint256 usdCut18, Ctx memory ctx)
-    //     internal
-    //     returns (uint256 qty18)
+    // function issuanceRiskAsset(uint256 usdcAmount, address[] calldata path, uint24[] calldata fees)
+    //     public
+    //     payable
+    //     onlyOwnerOrOperator
     // {
-    //     qty18 = (usdCut18 * 1e18) / ctx.cryptoPrice18;
-
-    //     factoryStorage.increaseTokenPendingRebalanceAmount(riskAssetToken, nonce, qty18);
-
-    //     RebalanceBatch storage batch = _rebalanceBatches[nonce];
-    //     batch.tokenDelta[riskAssetToken] = qty18;
-    //     batch.totalUsdcObtained += usdCut18;
-
-    //     ctx.vault.withdrawFunds(riskAssetToken, address(this), qty18);
-
-    //     IERC20(riskAssetToken).approve(factoryStorage.riskAssetFactoryAddress(), qty18);
-
-    //     uint256 ethFee = factoryStorage.getRedemptionFee(qty18);
-
-    //     this.redemptionRiskAsset{value: ethFee}(qty18, address(ctx.usdc), ctx.path, ctx.poolFees);
+    //     require(msg.value > 0, "balancer: no ETH");
+    //     uint256 usdcFee = FeeCalculation.calculateFee(usdcAmount, factoryStorage.feeRate());
+    //     IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).issuanceIndexTokens{value: msg.value}(
+    //         address(factoryStorage.usdc()), path, fees, usdcAmount
+    //     );
+    //     emit IssuanceRiskAssetForRebalance(usdcAmount, block.timestamp);
     // }
 
-    // function _sellBond(uint256 nonce, address bondToken, uint256 usdCut18, Ctx memory ctx)
-    //     internal
-    //     returns (uint256 qty18)
+    // function redemptionRiskAsset(uint256 amountIn, address tokenOut, address[] memory path, uint24[] memory fees)
+    //     public
+    //     payable
+    //     onlyOwnerOrOperator
     // {
-    //     qty18 = (usdCut18 * 1e18) / ctx.bondPrice18;
-
-    //     factoryStorage.increaseTokenPendingRebalanceAmount(bondToken, nonce, qty18);
-
-    //     RebalanceBatch storage batch = _rebalanceBatches[nonce];
-    //     batch.tokenDelta[bondToken] = qty18;
-    //     batch.totalUsdcObtained += usdCut18;
-    //     uint256 amount = ctx.vault.withdrawFunds(bondToken, address(this), qty18);
-    //     // ctx.vault.withdrawFunds(bondToken, factoryStorage.nexBot(), amount);
-    //     // withdrawBondForNexBot(amount);
-    //     IERC20(bondToken).safeTransfer(factoryStorage.nexBot(), amount);
+    //     require(msg.value > 0, "balancer: no ETH");
+    //     IRiskAssetFactory(factoryStorage.riskAssetFactoryAddress()).redemption{value: msg.value}(
+    //         amountIn, tokenOut, path, fees
+    //     );
+    //     emit RedemptionRiskAssetForRebalance(amountIn, block.timestamp);
     // }
-
-    function _mintCrypto5(uint256 amountUsdc, address[] calldata path, uint24[] calldata fees, uint256 msgValue)
-        internal
-    {
-        StagingCustodyAccount sca = factoryStorage.sca();
-
-        IERC20 usdc = factoryStorage.usdc();
-        usdc.safeTransfer(address(sca), amountUsdc);
-
-        uint256 feeEth = factoryStorage.getIssuanceFee(address(usdc), path, fees, amountUsdc);
-        require(msgValue == feeEth, "wrong ETH fee");
-
-        this.issuanceRiskAsset{value: feeEth}(amountUsdc, path, fees);
-    }
-
-    function checkFirstRebalanceOrdersStatus(uint256 _rebalanceNonce) public view returns (bool) {
-        require(_rebalanceNonce <= rebalanceNonce, "Wrong rebalance nonce!");
-
-        return true;
-    }
-
-    function checkSecondRebalanceOrdersStatus(uint256 _rebalanceNonce) public view returns (bool) {
-        require(_rebalanceNonce <= rebalanceNonce, "Wrong rebalance nonce!");
-
-        return true;
-    }
 
     function pause() external onlyOwner {
         _pause();
@@ -407,14 +356,10 @@ contract IndexFactoryBalancer is Initializable, OwnableUpgradeable, PausableUpgr
     }
 
     function pauseIndexFactory() internal {
-        if (!factoryStorage.indexFactory().paused()) {
-            factoryStorage.indexFactory().pause();
-        }
+        if (!factoryStorage.indexFactory().paused()) factoryStorage.indexFactory().pause();
     }
 
     function unpauseIndexFactory() internal {
-        if (factoryStorage.indexFactory().paused()) {
-            factoryStorage.indexFactory().unpause();
-        }
+        if (factoryStorage.indexFactory().paused()) factoryStorage.indexFactory().unpause();
     }
 }

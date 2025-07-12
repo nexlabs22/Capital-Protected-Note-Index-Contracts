@@ -68,7 +68,7 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
 
     event IssuanceSettled(uint256 indexed roundId);
     event RedemptionSettled(uint256 indexed roundId);
-    event IssuanceNonceRecorded(uint256 indexed roundId, uint256 indexed nonce); // NEW
+    event IssuanceNonceRecorded(uint256 indexed roundId, uint256 indexed nonce);
     event RedemptionNonceRecorded(uint256 indexed roundId, uint256 indexed nonce);
 
     modifier onlyFactory() {
@@ -364,13 +364,12 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function settleIssuance(uint256 roundId) external onlyOwnerOrOperator {
-        address[] storage list = issuanceRoundIdToAddresses[roundId];
-        for (uint256 i = 0; i < list.length; ++i) {
-            delete issuanceAmountByRoundUser[roundId][list[i]];
-        }
-        delete issuanceRoundIdToAddresses[roundId];
-
-        delete totalIssuanceByRound[roundId];
+        // address[] storage list = issuanceRoundIdToAddresses[roundId];
+        // for (uint256 i = 0; i < list.length; ++i) {
+        //     delete issuanceAmountByRoundUser[roundId][list[i]];
+        // }
+        // delete issuanceRoundIdToAddresses[roundId];
+        // delete totalIssuanceByRound[roundId];
 
         issuanceIsCompleted[roundId] = true;
         issuanceRoundActive[roundId] = false;
@@ -379,12 +378,12 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
     }
 
     function settleRedemption(uint256 roundId) external onlyOwnerOrOperator {
-        address[] storage list = redemptionRoundIdToAddresses[roundId];
-        for (uint256 i = 0; i < list.length; ++i) {
-            delete redemptionAmountByRoundUser[roundId][list[i]];
-        }
-        delete redemptionRoundIdToAddresses[roundId];
-        delete totalRedemptionByRound[roundId];
+        // address[] storage list = redemptionRoundIdToAddresses[roundId];
+        // for (uint256 i = 0; i < list.length; ++i) {
+        //     delete redemptionAmountByRoundUser[roundId][list[i]];
+        // }
+        // delete redemptionRoundIdToAddresses[roundId];
+        // delete totalRedemptionByRound[roundId];
 
         redemptionIsCompleted[roundId] = true;
         redemptionRoundActive[roundId] = false;
@@ -646,6 +645,14 @@ contract IndexFactoryStorage is Initializable, OwnableUpgradeable {
                 break;
             }
         }
+    }
+
+    function getIssuanceAmountByRound(uint256 roundId) public view returns (uint256) {
+        return totalIssuanceByRound[roundId];
+    }
+
+    function getRedemptionAmountByRound(uint256 roundId) public view returns (uint256) {
+        return totalRedemptionByRound[roundId];
     }
 
     uint256[50] private __gap;

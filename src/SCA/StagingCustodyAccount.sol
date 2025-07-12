@@ -47,6 +47,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         uint256 indexed totalIdx, uint256 indexed totalBond, uint256 indexed totalRiskAsset, uint256 timestamp
     );
     event IssuanceRequested(uint256 indexed usdcForBond, uint256 indexed usdcForRiskAsset, uint256 timestamp);
+    event IssuanceCompleted(address indexed user, uint256 indexed amount, uint256 timestamp);
+    event RedemptionCompleted(address indexed user, uint256 indexed amount, uint256 timestamp);
 
     modifier onlyOwnerOrOperator() {
         require(
@@ -167,7 +169,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         payable
         onlyOwnerOrOperator
     {
-        // require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
         if (roundId < 1 || roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
@@ -177,8 +178,11 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         require(factoryStorage.issuanceRoundActive(roundId), "Round is not active");
         require(!factoryStorage.issuanceIsCompleted(roundId), "Round already completed");
 
-        uint256 balance = factoryStorage.usdc().balanceOf(address(this));
-        require(balance > 0, "USDC Balance is Zero!");
+        // uint256 balance = factoryStorage.usdc().balanceOf(address(this));
+        // require(balance > 0, "USDC Balance is Zero!");
+
+        uint256 balance = factoryStorage.totalIssuanceByRound(roundId);
+        require(balance > 0, "Total issuance in this round is Zero!");
 
         uint256 usdcAmountForBond;
         uint256 usdcAmountForRiskAsset;
@@ -195,15 +199,14 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
             }
         }
 
-        uint256 dust = balance - usdcAmountForRiskAsset - usdcAmountForBond;
-        if (dust > 0) usdcAmountForBond += dust;
+        // uint256 dust = balance - usdcAmountForRiskAsset - usdcAmountForBond;
+        // if (dust > 0) usdcAmountForBond += dust;
 
         if (usdcAmountForRiskAsset > 0) {
             uint256 fee = factoryStorage.getIssuanceFee(
                 address(factoryStorage.usdc()), _tokenInPath, _tokenInFees, usdcAmountForRiskAsset
             );
             if (msg.value < fee) revert WrongETHAmount();
-            // issuanceRiskAsset(usdcAmountForRiskAsset, _tokenInPath, _tokenInFees);
             uint256 usdcFee = FeeCalculation.calculateFee(usdcAmountForRiskAsset, factoryStorage.feeRate());
             issuanceRiskAsset(usdcAmountForRiskAsset - usdcFee, _tokenInPath, _tokenInFees);
         } else {
@@ -224,11 +227,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         uint256[] memory nonces = factoryStorage.getIssuanceRoundIdToNonces(roundId);
         require(nonces.length > 0, "No issuance requests");
 
-        // require(roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
-        // require(roundId >= 1 && roundId <= factoryStorage.issuanceRoundId(), "Invalid roundId");
         if (roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
         if (roundId < 1 || roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
-        // if (roundId < 1 && roundId > factoryStorage.issuanceRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
             require(!factoryStorage.issuanceRoundActive(prev), "Prev round still active");
@@ -268,8 +268,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         nonReentrant
         onlyOwnerOrOperator
     {
-        // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
-        // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
@@ -301,6 +299,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
             if (slice == 0) continue;
 
             factoryStorage.vault().withdrawFunds(token, address(this), slice);
+            // factoryStorage.vault().withdrawFunds(token, factoryStorage.nexBot(), slice);
 
             if (aType == 1) {
                 riskSliceTotal += slice;
@@ -330,8 +329,6 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
         uint256[] memory nonces = factoryStorage.getRedemptionRoundIdToNonces(roundId);
         require(nonces.length > 0, "No redemption requests");
 
-        // require(roundId >= 1 && roundId <= factoryStorage.redemptionRoundId(), "Invalid roundId");
-        // if (roundId < 1 && roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         if (roundId < 1 || roundId > factoryStorage.redemptionRoundId()) revert InvalidRoundId();
         uint256 prev = roundId - 1;
         if (roundId > 1) {
@@ -366,6 +363,8 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
                 factoryStorage.usdc().safeTransfer(user, owed);
                 paid += owed;
             }
+
+            emit RedemptionCompleted(user, owed, block.timestamp);
         }
 
         uint256 dust = usdcForDistribute - paid;
@@ -389,6 +388,7 @@ contract StagingCustodyAccount is Initializable, ReentrancyGuardUpgradeable, Own
                 factoryStorage.indexToken().transfer(user, owed);
                 distributed += owed;
             }
+            emit IssuanceCompleted(user, userAmt, block.timestamp);
         }
     }
 
